@@ -1,0 +1,1 @@
+end_wrong_kind.awl:4:1: END_ORGANIZATION_BLOCK does not close FUNCTION; use END_FUNCTION

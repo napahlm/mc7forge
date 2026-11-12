@@ -1,0 +1,1 @@
+counter_number_out_of_range.awl:4:10: counter number 300 is out of range; counters go from 0 to 255

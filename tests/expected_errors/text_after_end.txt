@@ -1,0 +1,1 @@
+text_after_end.awl:6:1: unexpected text 'NETWORK' after END_FUNCTION; a source file holds exactly one block

@@ -1,0 +1,1 @@
+data_block_prefix_on_marker.awl:4:9: 'DB1.MW 4' is not a valid data block address; a DBn. prefix goes with DBX, DBB, DBW or DBD, for example DB1.DBW 4

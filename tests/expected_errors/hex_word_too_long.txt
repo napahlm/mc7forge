@@ -1,0 +1,1 @@
+hex_word_too_long.awl:4:9: malformed word constant 'W#16#12345'; write it like W#16#1A2B

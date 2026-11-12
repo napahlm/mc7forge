@@ -1,0 +1,44 @@
+Block OB1 "Lamp control" at examples/blink.awl:1:1
+  Network 1 "Latch the lamp" at examples/blink.awl:4:1
+    // The start button sets the lamp, the stop button resets it.
+    BitLogic A at examples/blink.awl:7:7  // start button
+      BitAddress I 0.0 at examples/blink.awl:7:13
+    BitWrite S at examples/blink.awl:8:7
+      BitAddress Q 0.0 at examples/blink.awl:8:13
+    BitLogic A at examples/blink.awl:9:7  // stop button
+      BitAddress I 0.1 at examples/blink.awl:9:13
+    BitWrite R at examples/blink.awl:10:7
+      BitAddress Q 0.0 at examples/blink.awl:10:13
+  Network 2 "Copy a word and load constants" at examples/blink.awl:11:1
+    Load L at examples/blink.awl:13:7
+      DataAddress MW 10 at examples/blink.awl:13:13
+    Transfer T at examples/blink.awl:14:7
+      DataAddress QW 4 at examples/blink.awl:14:13
+    Load L at examples/blink.awl:15:7
+      IntConstant 100 at examples/blink.awl:15:13
+    Transfer T at examples/blink.awl:16:7
+      DataAddress MW 12 at examples/blink.awl:16:13
+    Load L at examples/blink.awl:17:7
+      IntConstant L#100000 at examples/blink.awl:17:13
+    Transfer T at examples/blink.awl:18:7
+      DataAddress MD 20 at examples/blink.awl:18:13
+    Load L at examples/blink.awl:19:7
+      RealConstant 1.500000 at examples/blink.awl:19:13
+    Transfer T at examples/blink.awl:20:7
+      DataAddress DBD 8 at examples/blink.awl:20:13
+    Load L at examples/blink.awl:21:7
+      TypedConstant W#16#1f at examples/blink.awl:21:13
+    Transfer T at examples/blink.awl:22:7
+      DataAddress DBW 2 at examples/blink.awl:22:13
+    Load L at examples/blink.awl:23:7
+      TypedConstant S5T#2S at examples/blink.awl:23:13
+    Transfer T at examples/blink.awl:24:7
+      DataAddress MW 30 at examples/blink.awl:24:13
+  Network 3 at examples/blink.awl:25:1
+    BitLogic AN at examples/blink.awl:26:7
+      BitAddress M 10.3 at examples/blink.awl:26:13
+    BitLogic O at examples/blink.awl:27:7
+      BitAddress DBX 0.0 at examples/blink.awl:27:13
+    BitWrite = at examples/blink.awl:28:7
+      BitAddress Q 0.1 at examples/blink.awl:28:13
+    BlockEnd BE at examples/blink.awl:29:7

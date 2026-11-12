@@ -1,0 +1,1 @@
+declarations.awl:2:1: expected BEGIN, found 'VAR_TEMP'; declaration sections are not supported yet; remove them and use absolute addresses

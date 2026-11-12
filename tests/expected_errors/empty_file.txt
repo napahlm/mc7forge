@@ -1,0 +1,1 @@
+empty_file.awl:1:1: the source contains no block; start with ORGANIZATION_BLOCK OB 1, FUNCTION FC 1 : VOID or FUNCTION_BLOCK FB 1

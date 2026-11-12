@@ -11,7 +11,8 @@ from scripts import capture_fixtures
 from tests.support import reference_blocks
 
 FIXTURES = Path(__file__).parent / "fixtures" / "blocks"
-ALL_FIXTURES = sorted(FIXTURES.rglob("*.mc7"))
+ALL_FIXTURES = sorted([*FIXTURES.rglob("*.mc7"), *FIXTURES.rglob("*.bin")])
+NAMED_FIXTURES = [path for path in ALL_FIXTURES if path.suffix == ".mc7"]
 FAKE_FIXTURES = sorted((FIXTURES / "fake").glob("*.mc7"))
 
 
@@ -33,7 +34,7 @@ def test_fixture_reserializes_byte_for_byte(path: Path) -> None:
     assert image.size == len(raw)
 
 
-@pytest.mark.parametrize("path", ALL_FIXTURES, ids=fixture_id)
+@pytest.mark.parametrize("path", NAMED_FIXTURES, ids=fixture_id)
 def test_fixture_name_matches_its_header(path: Path) -> None:
     assert parse_image(path.read_bytes()).header.name == path.stem
 
@@ -62,3 +63,16 @@ def test_fake_fixtures_are_what_the_capture_script_produces(
     assert produced == committed
     assert set(committed.values()) == set(reference_blocks().values())
     assert capsys.readouterr().out.count("trailing unknown 0)") == 3
+
+
+def test_reference_block_has_exactly_the_documented_layout() -> None:
+    path = FIXTURES / "reference" / "cm7.bin"
+    assert path in ALL_FIXTURES
+    image = parse_image(path.read_bytes())
+    header = image.header
+    assert (header.name, header.length, image.size) == ("OB1", 142, 142)
+    assert (header.mc7_length, header.interface_length, header.segment_table_length) == (36, 28, 6)
+    assert validate_image(image) == []
+    assert image.payload[-2:] == bytes.fromhex("6500")
+    assert image.interface[:6] == bytes.fromhex("010000140000")
+    assert image.segment_table == bytes.fromhex("010022000000")

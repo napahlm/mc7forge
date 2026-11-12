@@ -1,0 +1,1 @@
+international_area_in_german.de.awl:4:9: unknown operand area 'I'; this is international spelling; drop --mnemonics de or use the German one

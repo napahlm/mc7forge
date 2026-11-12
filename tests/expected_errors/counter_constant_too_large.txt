@@ -1,0 +1,1 @@
+counter_constant_too_large.awl:4:9: counter constant 'C#1000' is above C#999

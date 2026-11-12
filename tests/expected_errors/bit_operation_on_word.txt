@@ -1,0 +1,1 @@
+bit_operation_on_word.awl:4:9: A needs a bit address such as I 0.0, found 'MW 10'

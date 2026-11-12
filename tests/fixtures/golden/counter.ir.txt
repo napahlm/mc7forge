@@ -1,0 +1,32 @@
+Block FC1 "Up/down counter, the program of the reference block cm7.bin" at examples/counter.awl:1:1
+  Network 1 "Edge-triggered set and reset" at examples/counter.awl:4:1
+    BitLogic A at examples/counter.awl:6:7
+      BitAddress I 0.1 at examples/counter.awl:6:13
+    EdgeDetect FP at examples/counter.awl:7:7
+      BitAddress M 0.0 at examples/counter.awl:7:13
+    BitWrite S at examples/counter.awl:8:7
+      BitAddress Q 0.0 at examples/counter.awl:8:13
+    BitLogic A at examples/counter.awl:9:7
+      BitAddress I 0.1 at examples/counter.awl:9:13
+    EdgeDetect FN at examples/counter.awl:10:7
+      BitAddress M 0.1 at examples/counter.awl:10:13
+    BitWrite R at examples/counter.awl:11:7
+      BitAddress Q 0.0 at examples/counter.awl:11:13
+  Network 2 "Count and show the value" at examples/counter.awl:12:1
+    BitLogic A at examples/counter.awl:14:7
+      BitAddress I 0.2 at examples/counter.awl:14:13
+    CounterControl CD at examples/counter.awl:15:7
+      CounterAddress C 0 at examples/counter.awl:15:13
+    BitLogic A at examples/counter.awl:16:7
+      BitAddress I 0.3 at examples/counter.awl:16:13
+    CounterControl CU at examples/counter.awl:17:7
+      CounterAddress C 0 at examples/counter.awl:17:13
+    CounterControl LC at examples/counter.awl:18:7
+      CounterAddress C 0 at examples/counter.awl:18:13
+    Transfer T at examples/counter.awl:19:7
+      DataAddress QW 2 at examples/counter.awl:19:13
+    Load L at examples/counter.awl:20:7
+      IntConstant 13 at examples/counter.awl:20:13
+    Transfer T at examples/counter.awl:21:7
+      DataAddress QB 0 at examples/counter.awl:21:13
+    BlockEnd BE at examples/counter.awl:22:7

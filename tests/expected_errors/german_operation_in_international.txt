@@ -1,0 +1,1 @@
+german_operation_in_international.awl:4:7: unknown operation 'U'; this is German spelling; use --mnemonics de

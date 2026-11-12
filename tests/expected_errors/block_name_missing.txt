@@ -1,0 +1,1 @@
+block_name_missing.awl:1:1: ORGANIZATION_BLOCK needs a block name; write ORGANIZATION_BLOCK OB 1

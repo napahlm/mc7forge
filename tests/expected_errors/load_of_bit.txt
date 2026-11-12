@@ -1,0 +1,1 @@
+load_of_bit.awl:4:9: L needs a constant or an address such as MW 10, found 'I 0.0'

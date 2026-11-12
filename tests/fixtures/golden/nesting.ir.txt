@@ -1,0 +1,14 @@
+Block FB7 at examples/nesting.awl:1:1
+  Network 1 "Parsed, but not compiled yet" at examples/nesting.awl:3:1
+    NestOpen A( at examples/nesting.awl:5:7
+    BitLogic O at examples/nesting.awl:6:7
+      BitAddress I 0.0 at examples/nesting.awl:6:13
+    BitLogic O at examples/nesting.awl:7:7
+      BitAddress I 0.1 at examples/nesting.awl:7:13
+    NestClose ) at examples/nesting.awl:8:7
+    BitLogic A at examples/nesting.awl:9:7
+      BitAddress DB1.DBX 0.0 at examples/nesting.awl:9:13
+    BitWrite = at examples/nesting.awl:10:7
+      BitAddress Q 0.0 at examples/nesting.awl:10:13
+    Load L at examples/nesting.awl:11:7
+      BoolConstant TRUE at examples/nesting.awl:11:13

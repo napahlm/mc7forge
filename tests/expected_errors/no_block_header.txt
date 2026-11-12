@@ -1,0 +1,1 @@
+no_block_header.awl:1:1: expected a block header, found 'NETWORK'; start with ORGANIZATION_BLOCK OB 1, FUNCTION FC 1 : VOID or FUNCTION_BLOCK FB 1

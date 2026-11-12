@@ -1,11 +1,12 @@
 # Block fixtures
 
 Reference block images for the `mc7asm` tests.
-Every `*.mc7` file below this directory must re-serialize byte for byte through `mc7asm.image`.
+Every `*.mc7` and `*.bin` file below this directory must re-serialize byte for byte through `mc7asm.image`.
 
 | Directory | Content | How it is produced |
 | --- | --- | --- |
 | `fake/` | Synthetic stand-ins: `OB1`, `FC1`, `DB1`. | `uv run python scripts/capture_fixtures.py --fake` |
+| `reference/` | `cm7.bin`, the sample OB1 of rz-libmc7 (LGPL-3.0-only). | vendored, see its own README |
 | `real/` | Blocks uploaded from a real S7-300. | `uv run python scripts/capture_fixtures.py --host <ip> [OB1 FC5 DB10]` |
 
 The fake blocks have the documented layout (36-byte header, payload, interface, segment table, 36-byte footer), but their section contents are made up.

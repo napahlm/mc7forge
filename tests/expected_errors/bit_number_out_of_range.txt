@@ -1,0 +1,1 @@
+bit_number_out_of_range.awl:4:9: bit number 8 is out of range; bits are numbered 0 to 7

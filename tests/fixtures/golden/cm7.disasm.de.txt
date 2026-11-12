@@ -1,0 +1,23 @@
+tests/fixtures/blocks/reference/cm7.bin: OB1, 36 bytes of MC7 code
+
+  offset  bytes        instruction
+  0x0024  c1 00        U E 0.1
+  0x0026  49 30 00 00  FP M 0.0
+  0x002a  d0 80        S A 0.0
+  0x002c  c1 00        U E 0.1
+  0x002e  49 b1 00 00  FN M 0.1
+  0x0032  f0 80        R A 0.0
+  0x0034  c2 00        U E 0.2
+  0x0036  54 00        ZR Z 0
+  0x0038  c3 00        U E 0.3
+  0x003a  6c 00        ZV Z 0
+  0x003c  4c 00        LC Z 0
+  0x003e  53 82        T AW 2
+  0x0040  30 03 00 0d  L 13
+  0x0044  4b 80        T AB 0
+  0x0046  65 00        BE
+
+Coverage: 36 of 36 code bytes decoded, 0 unknown
+
+Findings
+  none

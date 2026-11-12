@@ -1,0 +1,1 @@
+character_constant_not_closed.awl:4:9: character constant is not closed; end it with a second ' on the same line

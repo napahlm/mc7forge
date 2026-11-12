@@ -1,0 +1,1 @@
+statement_outside_network.awl:3:7: 'A' is outside a network; start a network with NETWORK

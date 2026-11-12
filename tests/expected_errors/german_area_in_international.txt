@@ -1,0 +1,1 @@
+german_area_in_international.awl:4:9: unknown operand area 'E'; this is German spelling; use --mnemonics de

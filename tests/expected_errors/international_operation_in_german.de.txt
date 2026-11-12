@@ -1,0 +1,1 @@
+international_operation_in_german.de.awl:4:7: unknown operation 'A'; this is international spelling; drop --mnemonics de or use the German one

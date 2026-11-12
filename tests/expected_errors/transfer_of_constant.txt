@@ -1,0 +1,1 @@
+transfer_of_constant.awl:5:9: T needs an address such as MW 10, found '100'

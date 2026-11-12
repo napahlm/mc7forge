@@ -1,0 +1,1 @@
+s5time_not_representable.awl:4:9: S5TIME constant 'S5T#1S5MS' cannot be represented exactly; S5TIME holds 3 digits with a time base of 10 ms, 100 ms, 1 s or 10 s, at most S5T#2H46M30S

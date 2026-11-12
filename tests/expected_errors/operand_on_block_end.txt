@@ -1,0 +1,1 @@
+operand_on_block_end.awl:4:10: BE takes no operand, found '1'

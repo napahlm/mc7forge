@@ -1,0 +1,1 @@
+function_with_return_type.awl:1:17: only functions without a return value are supported; write FUNCTION FC 1 : VOID

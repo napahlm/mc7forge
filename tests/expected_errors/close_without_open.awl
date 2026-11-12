@@ -1,0 +1,6 @@
+FUNCTION FC 1 : VOID
+BEGIN
+NETWORK
+      A I 0.0
+      )
+END_FUNCTION

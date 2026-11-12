@@ -1,0 +1,23 @@
+FUNCTION FC 1 : VOID
+TITLE = Up/down counter, the program of the reference block cm7.bin
+BEGIN
+NETWORK
+TITLE = Edge-triggered set and reset
+      A     I0.1
+      FP    M0.0
+      S     Q0.0
+      A     I0.1
+      FN    M0.1
+      R     Q0.0
+NETWORK
+TITLE = Count and show the value
+      A     I0.2
+      CD    C0
+      A     I0.3
+      CU    C0
+      LC    C0
+      T     QW2
+      L     13
+      T     QB0
+      BE
+END_FUNCTION

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 
+from mc7asm.disasm import DecodedInstruction, Disassembly
 from mc7asm.image import (
     FOOTER_SIZE,
     HEADER_SIZE,
@@ -182,3 +183,33 @@ def _finding_rows(findings: Iterable[Finding]) -> list[str]:
         f"  {finding.severity.value}: {finding.message} [{finding.code}]" for finding in findings
     ]
     return rows or ["  none"]
+
+
+def render_disassembly(label: str, disassembly: Disassembly) -> str:
+    """Render the listing printed by ``mc7asm disasm``.
+
+    Offsets are file offsets, as in the dump. Unknown opcodes appear in the
+    listing at their position and again under the findings.
+    """
+    header = disassembly.image.header
+    code_offset = disassembly.image.sections()[1].offset
+    width = max(4, len(f"{disassembly.image.size:x}"))
+    rows = [("offset", "bytes", "instruction")]
+    for entry in disassembly.entries:
+        text = entry.text if isinstance(entry, DecodedInstruction) else "?? unknown opcode"
+        rows.append((f"0x{code_offset + entry.offset:0{width}x}", entry.data.hex(" "), text))
+    widths = [max(len(row[column]) for row in rows) for column in range(2)]
+    lines = [f"{label}: {header.name}, {disassembly.code_size} bytes of MC7 code", ""]
+    lines += [
+        f"  {offset:>{widths[0]}}  {raw:<{widths[1]}}  {text}".rstrip()
+        for offset, raw, text in rows
+    ]
+    lines += [
+        "",
+        f"Coverage: {disassembly.decoded_bytes} of {disassembly.code_size} code bytes decoded, "
+        f"{disassembly.unknown_bytes} unknown",
+        "",
+        "Findings",
+        *_finding_rows(disassembly.findings),
+    ]
+    return "\n".join(lines) + "\n"

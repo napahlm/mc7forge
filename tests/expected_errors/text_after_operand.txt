@@ -1,0 +1,1 @@
+text_after_operand.awl:4:15: unexpected text 'I' after the operand; write one statement per line

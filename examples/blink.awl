@@ -1,0 +1,30 @@
+ORGANIZATION_BLOCK OB 1
+TITLE = Lamp control
+BEGIN
+NETWORK
+TITLE = Latch the lamp
+// The start button sets the lamp, the stop button resets it.
+      A     I 0.0;        // start button
+      S     Q 0.0;
+      A     I 0.1;        // stop button
+      R     Q 0.0;
+NETWORK
+TITLE = Copy a word and load constants
+      L     MW 10;
+      T     QW 4;
+      L     100;
+      T     MW 12;
+      L     L#100000;
+      T     MD 20;
+      L     1.5;
+      T     DBD 8;
+      L     W#16#1F;
+      T     DBW 2;
+      L     S5T#2S;
+      T     MW 30;
+NETWORK
+      AN    M 10.3;
+      O     DBX 0.0;
+      =     Q 0.1;
+      BE;
+END_ORGANIZATION_BLOCK

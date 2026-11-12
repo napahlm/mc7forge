@@ -192,7 +192,7 @@ def test_upload_writes_validated_files(
     assert (tmp_path / "OB1.mc7").read_bytes() == images[(BlockType.OB, 1)]
     assert (tmp_path / "FC5.mc7").read_bytes() == images[(BlockType.FC, 5)]
     assert capsys.readouterr().out == (
-        f"OB1 -> {tmp_path / 'OB1.mc7'} (94 bytes)\nFC5 -> {tmp_path / 'FC5.mc7'} (102 bytes)\n"
+        f"OB1 -> {tmp_path / 'OB1.mc7'} (87 bytes)\nFC5 -> {tmp_path / 'FC5.mc7'} (95 bytes)\n"
     )
 
 
@@ -252,7 +252,7 @@ def test_download_sends_and_verifies(
     plc.download_block.assert_called_once_with(image)
     plc.verify_block.assert_called_once_with(image)
     assert capsys.readouterr().out == (
-        f"FC5 downloaded (94 bytes)\nFC5 verified: the block in the PLC is identical to {path}\n"
+        f"FC5 downloaded (87 bytes)\nFC5 verified: the block in the PLC is identical to {path}\n"
     )
 
 
@@ -273,7 +273,7 @@ def test_download_refuses_without_confirmation_when_not_interactive(
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
     assert run("download", str(path)) == 1
     assert capsys.readouterr().err == (
-        "error: refusing to download FC5 (94 bytes) to 10.0.0.5, replacing the block there "
+        "error: refusing to download FC5 (87 bytes) to 10.0.0.5, replacing the block there "
         "without --yes (input is not a terminal)\n"
     )
     plc.download_block.assert_not_called()
@@ -302,7 +302,7 @@ def test_download_asks_interactively(
     monkeypatch.setattr("builtins.input", fake_input)
     assert run("download", str(path)) == (0 if sent else 1)
     assert prompts == [
-        "About to download FC5 (94 bytes) to 10.0.0.5, replacing the block there. Continue? [y/N] "
+        "About to download FC5 (87 bytes) to 10.0.0.5, replacing the block there. Continue? [y/N] "
     ]
     assert plc.download_block.called is sent
     if not sent:

@@ -525,7 +525,7 @@ def test_download_with_a_dropped_connection(plc: PlcClient, s7: MagicMock) -> No
 
 
 def test_verify_block_accepts_an_identical_block(plc: PlcClient, s7: MagicMock) -> None:
-    image = make_block(BlockType.DB, 9, language=5)
+    image = make_block(BlockType.DB, 9)
     s7.full_upload.return_value = (bytearray(image), len(image))
     assert plc.verify_block(image).name == "DB9"
 
@@ -545,5 +545,5 @@ def test_verify_block_reports_a_size_difference(plc: PlcClient, s7: MagicMock) -
     image = make_block(BlockType.DB, 9, mc7=b"\x00\x01")
     other = make_block(BlockType.DB, 9, mc7=b"\x00\x01\x02\x03")
     s7.full_upload.return_value = (bytearray(other), len(other))
-    with pytest.raises(BlockVerifyError, match=r"is 96 byte\(s\), the reference is 94"):
+    with pytest.raises(BlockVerifyError, match=r"is 83 byte\(s\), the reference is 81"):
         plc.verify_block(image)

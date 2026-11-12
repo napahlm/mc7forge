@@ -78,8 +78,8 @@ def test_round_trip_leaves_the_block_unchanged(fake: FakePlc, plc: PlcClient) ->
 
 
 def test_download_replaces_an_existing_block(fake: FakePlc, plc: PlcClient) -> None:
-    old = make_block(BlockType.DB, 3, mc7=b"\x00" * 8, language=5)
-    new = make_block(BlockType.DB, 3, mc7=b"\x11" * 8, language=5)
+    old = make_block(BlockType.DB, 3, mc7=b"\x00" * 8)
+    new = make_block(BlockType.DB, 3, mc7=b"\x11" * 8)
     fake.add(BlockType.DB, 3, old)
     with pytest.raises(BlockVerifyError, match="differs from the reference at byte offset 36"):
         plc.verify_block(new)
@@ -133,7 +133,7 @@ def test_cli_upload_then_download_round_trip(
     path = tmp_path / "FC105.mc7"
     assert load_block(path)[0] == BIG_FC
     assert capsys.readouterr().out == (
-        f"FC105 -> {path} ({len(BIG_FC)} bytes)\nOB1 -> {tmp_path / 'OB1.mc7'} (94 bytes)\n"
+        f"FC105 -> {path} ({len(BIG_FC)} bytes)\nOB1 -> {tmp_path / 'OB1.mc7'} (87 bytes)\n"
     )
 
     assert cli.main(["download", str(path), "--yes", *target]) == 0

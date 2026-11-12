@@ -115,7 +115,7 @@ def test_block_filename() -> None:
 
 
 def test_save_and_load_round_trip(tmp_path: Path) -> None:
-    image = make_block(BlockType.DB, 7, language=5)
+    image = make_block(BlockType.DB, 7)
     path = tmp_path / "nested" / "DB7.mc7"
     assert save_block(path, image).name == "DB7"
     data, header = load_block(path)

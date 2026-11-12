@@ -11,7 +11,14 @@ from snap7.server import ServerISOConnection
 
 from mc7.blocks import HEADER_SIZE, BlockType
 
-FOOTER_SIZE = 56
+FOOTER_SIZE = 36
+INTERFACE_HEADER_SIZE = 7
+DATA_BLOCK_TYPES = (BlockType.DB, BlockType.SDB)
+
+# 1984-01-02 00:01:00.000 and 1984-01-01 00:00:00.000 in the S7 header encoding:
+# u32 milliseconds since midnight followed by u16 days since 1984-01-01.
+CODE_TIMESTAMP = struct.pack(">IH", 60_000, 1)
+INTERFACE_TIMESTAMP = struct.pack(">IH", 0, 0)
 
 
 def make_block(
@@ -19,29 +26,85 @@ def make_block(
     number: int = 1,
     *,
     mc7: bytes = b"\x65\x00",
-    language: int = 1,
+    language: int | None = None,
+    interface_entries: bytes = b"",
+    local_data: int | None = None,
+    unaccounted: bytes = b"",
 ) -> bytes:
-    """Build a structurally valid block image: header, MC7 payload and footer."""
-    load_size = HEADER_SIZE + len(mc7) + FOOTER_SIZE
+    """Build a synthetic block image with the layout of a real online block.
+
+    The layout follows ``MC7Converter.cs`` of DotNetSiemensPLCToolBoxLibrary and
+    the sample block of rz-libmc7: 36-byte header, MC7 code (or the actual
+    values of a DB), interface, segment table and a 36-byte footer. The section
+    contents are made up; only the structure and the header fields are real.
+
+    Args:
+        block_type: Block category, selects the sub-block code and the layout.
+        number: Block number.
+        mc7: MC7 code of a code block, or the body of a data block.
+        language: Language code; defaults to 5 (DB) for data blocks, else 1 (STL).
+        interface_entries: Bytes following the 7-byte interface sub-header.
+        local_data: Local data length field; defaults to 20 for an OB, else 0.
+        unaccounted: Extra bytes placed between the declared sections and the
+            footer, which none of the header length fields cover.
+    """
+    is_data = block_type in DATA_BLOCK_TYPES
+    if language is None:
+        language = 5 if is_data else 1
+    if local_data is None:
+        local_data = 20 if block_type is BlockType.OB else 0
+    interface = (
+        bytes((0x05 if is_data else 0x01,))
+        + struct.pack(
+            "<HHH", 0 if block_type is BlockType.OB else number, len(interface_entries), 0
+        )
+        + interface_entries
+    )
+    # One network that spans the code up to the closing BE instruction.
+    segment_table = b"" if is_data else struct.pack("<HHH", 1, max(len(mc7) - 2, 0), 0)
+    body = mc7 + interface + segment_table + unaccounted
     header = struct.pack(
-        ">2sBBBBHII6s6sHHHH",
+        ">2sBBBBHI4s6s6sHHHH",
         b"pp",
         0x01,
         0x01,
         language,
         block_type.subblock_code,
         number,
-        load_size,
-        0,
-        bytes(range(6)),
-        bytes(range(6, 12)),
-        0,
-        0,
-        0,
+        HEADER_SIZE + len(body) + FOOTER_SIZE,
+        bytes(4),
+        CODE_TIMESTAMP,
+        INTERFACE_TIMESTAMP,
+        len(interface),
+        len(segment_table),
+        local_data,
         len(mc7),
     )
-    footer = bytes(20) + b"AUTHOR  FAMILY  NAME    " + bytes((0x11, 0x00, 0xAB, 0xCD)) + bytes(8)
-    return header + mc7 + footer
+    footer = b"AUTHOR  FAMILY  NAME    " + bytes((0x01, 0x00, 0xAB, 0xCD)) + bytes(8)
+    return header + body + footer
+
+
+def reference_blocks() -> dict[tuple[BlockType, int], bytes]:
+    """Return the synthetic stand-ins for the reference corpus: a small OB1, an FC and a DB."""
+    return {
+        (BlockType.OB, 1): make_block(
+            BlockType.OB,
+            1,
+            mc7=bytes.fromhex("600d 6009 6500"),
+            interface_entries=bytes.fromhex("0205 0205 0205 0205 0205 0205 0505 0505 0505 0e05"),
+        ),
+        (BlockType.FC, 1): make_block(
+            BlockType.FC,
+            1,
+            mc7=bytes.fromhex("600a 600e 6001 6500"),
+        ),
+        (BlockType.DB, 1): make_block(
+            BlockType.DB,
+            1,
+            mc7=bytes.fromhex("0001 0002 0000 0003 3fc0 0000 0000 0000"),
+            interface_entries=bytes.fromhex("0501 0501 0701 0801"),
+        ),
+    }
 
 
 def free_port() -> int:

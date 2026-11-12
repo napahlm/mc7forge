@@ -77,7 +77,7 @@ def test_request_download_layout() -> None:
         "1a 00 01 00 00 00 00 00 "  # function, fixed bytes, download id
         "09 5f 30 43 30 30 30 30 35 50 "  # length 9, "_0C00005P"
         "0d 31 "  # length 13, "1"
-        "30 30 30 31 33 32 "  # load memory length "000132"
+        "30 30 30 31 32 35 "  # load memory length "000125"
         "30 30 30 30 34 30"  # MC7 length "000040"
     )
 
@@ -130,7 +130,7 @@ def test_full_sequence_in_a_single_slice() -> None:
 
 def test_block_is_split_by_the_negotiated_pdu_length() -> None:
     pdu_length = 68  # leaves 50 payload bytes per slice
-    assert len(FC5) == 132
+    assert len(FC5) == 125
     channel = ScriptedChannel(
         [
             ack(1, 0x1A),
@@ -177,7 +177,7 @@ def test_plc_error_in_the_middle_of_the_transfer() -> None:
 
 def test_plc_ending_early_is_detected() -> None:
     channel = ScriptedChannel([ack(1, 0x1A), job(0x4001, 0x1B), job(0x4002, 0x1C)])
-    with pytest.raises(BlockTransferError, match="after 50 of 132 bytes"):
+    with pytest.raises(BlockTransferError, match="after 50 of 125 bytes"):
         run(channel, pdu_length=68)
 
 

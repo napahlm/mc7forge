@@ -5,7 +5,7 @@ An open-source toolchain for the Siemens S7-300, in two packages.
 - `mc7` is a library and CLI for talking to the PLC over ISO-on-TCP (RFC 1006, TCP port 102).
   It targets a CPU 317-2 DP reached through a CP 343-1 Ethernet module and is built on [python-snap7](https://github.com/gijzelaerr/python-snap7).
 - `mc7asm` is the start of an STL to MC7 assembler.
-  So far it reads, dumps and disassembles block files, and compiles straight-line STL source to MC7 code.
+  So far it reads, dumps and disassembles block files, and compiles straight-line STL source into complete code blocks.
   It is pure software, works on block files only and never talks to a PLC.
   See [mc7asm](#mc7asm-block-images-and-the-assembler-skeleton).
 
@@ -270,7 +270,8 @@ Known differences and limits:
 
 `mc7asm` reads the block files that `mc7 upload` writes.
 It models the block container at field level, prints it, and disassembles the MC7 code of OBs, FCs and FBs for the instruction forms in its opcode table.
-It also parses STL source and compiles it to the raw MC7 code of a block; wrapping that code into a block container is the next stage.
+It also parses STL source, compiles it to MC7 code and wraps that code into a complete block image.
+No block built this way has been loaded into a CPU yet.
 
 ```bash
 mc7asm dump tests/fixtures/blocks/fake/OB1.mc7
@@ -370,13 +371,13 @@ mc7asm compile examples/counter.awl -o counter.body
 ```
 
 ```text
-examples/counter.awl: FC1, 2 networks, 36 bytes of MC7 code -> counter.body
+examples/counter.awl: FC1, 2 networks, 34 bytes of MC7 code -> counter.body
   network 1 "Edge-triggered set and reset": 6 instructions, 16 bytes at offset 0x0000
-  network 2 "Count and show the value": 9 instructions, 20 bytes at offset 0x0010
+  network 2 "Count and show the value": 8 instructions, 18 bytes at offset 0x0010
 ```
 
 The output is the raw MC7 code only.
-`examples/counter.awl` is the program of the reference block, and its body is byte for byte the code section of `cm7.bin`.
+`examples/counter.awl` is the program of the reference block, and its body is byte for byte the code section of `cm7.bin` without the closing `BE`, which the container adds.
 
 Both commands take `--mnemonics de` for German source (`U E 0.0`, `= A 0.0`, `ZV Z 1`).
 The source subset, the IR and the rules of the code generator are described in [docs/assembler.md](docs/assembler.md).
@@ -391,6 +392,31 @@ In short:
 The corpus is the arbiter of the whole chain.
 Every corpus vector goes through bytes, disassembly, parsing and code generation, and 714 of the 718 vectors the table covers come back identical.
 The other four are listed in the test with the reason: two are not the canonical encoding of their text, two belong to the unverified `B#16#` row.
+
+### Building a block
+
+```bash
+mc7asm build examples/reference_ob1.awl -o OB1.mc7
+```
+
+```text
+examples/reference_ob1.awl: OB1, 142 bytes -> OB1.mc7
+  code 36 bytes (BE appended), interface 28, segment table 6, local data 20
+```
+
+`build` compiles the source, appends the closing `BE`, and wraps the code into a block image: header, code, interface, segment table and footer.
+It then parses the bytes it is about to write and validates them, and it writes nothing if that validation reports anything.
+`--timestamp` sets the time stored in the header, which makes a build reproducible.
+
+The layout is grounded in one real block, the OB1 `cm7.bin`.
+Building `examples/reference_ob1.awl` with that block's timestamps reproduces it byte for byte except for the two checksum bytes.
+The checksum is written as zero: its algorithm is not documented, and the Snap7 client zeroes the field before a download as well.
+Everything that goes beyond that single-network OB1 is a generalization, and `build` says so in a note, for example for an FC or for a block with several networks.
+
+Building and loading are separate.
+`mc7asm` only writes a file; sending it to a CPU is the job of `mc7 download`, with its own confirmation.
+No block built by `mc7asm` has been loaded into a CPU yet, so treat the first download as an experiment on a CPU where a wrong block does no harm.
+[docs/container.md](docs/container.md) decodes the reference block and lists what is confirmed and what is generalized.
 
 ### Opcode corpus
 
@@ -434,9 +460,8 @@ It will be decided from a real DB fixture, not guessed.
 | `mc7asm.notation` | implemented | Spelling of typed constants, shared by parser, printer and disassembler. |
 | `mc7asm.printer` | implemented | IR back to STL text and the tree of `mc7asm parse`. |
 | `mc7asm.codegen` | implemented for straight-line code | IR to MC7 bytes through the opcode table, with length accounting. |
-| `mc7asm.container` | interface only | Wrap assembled code into a new block image. |
+| `mc7asm.container` | implemented for OB, FC and FB | Wrap compiled code into a block image, closing it with `BE`. |
 
-The interface-only functions raise `NotYetImplementedError`.
 A test checks that importing `mc7asm` never loads `mc7`, `snap7` or `socket`.
 
 ### Reference corpus

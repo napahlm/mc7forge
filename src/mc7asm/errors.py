@@ -21,16 +21,8 @@ class UnsupportedBlockError(Mc7AsmError):
     """The block is of a kind this tool does not disassemble."""
 
 
-class NotYetImplementedError(Mc7AsmError, NotImplementedError):
-    """A pipeline step of the assembler exists as an interface only."""
-
-    def __init__(self, feature: str) -> None:
-        """Name the missing feature in the message."""
-        super().__init__(
-            f"{feature} is not implemented yet; mc7asm compiles STL to MC7 code but does "
-            "not build block containers"
-        )
-        self.feature = feature
+class ContainerError(Mc7AsmError):
+    """Compiled code cannot be wrapped into a block container."""
 
 
 class Mc7SyntaxError(Mc7AsmError, ValueError):

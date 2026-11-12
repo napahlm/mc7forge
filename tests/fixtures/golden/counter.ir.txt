@@ -29,4 +29,3 @@ Block FC1 "Up/down counter, the program of the reference block cm7.bin" at examp
       IntConstant 13 at examples/counter.awl:20:13
     Transfer T at examples/counter.awl:21:7
       DataAddress QB 0 at examples/counter.awl:21:13
-    BlockEnd BE at examples/counter.awl:22:7

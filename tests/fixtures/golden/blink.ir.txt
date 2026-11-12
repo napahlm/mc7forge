@@ -41,4 +41,3 @@ Block OB1 "Lamp control" at examples/blink.awl:1:1
       BitAddress DBX 0.0 at examples/blink.awl:27:13
     BitWrite = at examples/blink.awl:28:7
       BitAddress Q 0.1 at examples/blink.awl:28:13
-    BlockEnd BE at examples/blink.awl:29:7

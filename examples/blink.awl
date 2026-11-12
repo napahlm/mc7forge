@@ -26,5 +26,4 @@ NETWORK
       AN    M 10.3;
       O     DBX 0.0;
       =     Q 0.1;
-      BE;
 END_ORGANIZATION_BLOCK

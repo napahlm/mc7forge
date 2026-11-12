@@ -72,6 +72,10 @@ Conclusion: the code section ends with a `BE` instruction that is part of the co
 The disassembler decodes and prints it.
 This is established on one block; the fake fixtures were built to end the same way.
 
+Consequence for the assembler: the source of a block does not contain the closing `BE`.
+The code generator emits exactly the source, and `mc7asm.container` appends `65 00` and counts it in the code length.
+Building the reference program this way reproduces the 36 code bytes of `cm7.bin`.
+
 ### `L B#16#` is unverified
 
 For `28 12` the corpus expects `L B#16#18` (line 443): the byte 0x12 printed in decimal behind the radix prefix.
@@ -104,6 +108,10 @@ Candidate readings of `01 00 22 00 00 00`, all as little-endian 16-bit words:
 3. A length list terminated by zero, with the first word meaning something else.
 
 A block with at least two networks is needed to decide between them.
+
+The container builder writes reading 1: the network count, one length per network without the closing `BE`, and a zero word.
+For one network this reproduces the bytes of `cm7.bin`; for several networks it is a generalization and `mc7asm build` reports it as a note.
+The reader still keeps the table raw.
 
 ## Unknown opcodes
 

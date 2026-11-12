@@ -49,7 +49,7 @@ def test_block_structure() -> None:
     assert block.networks[0].comment == (
         "The start button sets the lamp, the stop button resets it.",
     )
-    assert [len(network.instructions) for network in block.networks] == [4, 12, 4]
+    assert [len(network.instructions) for network in block.networks] == [4, 12, 3]
     assert block.networks[0].instructions[0].comment == "start button"
     assert str(block.networks[1].location) == f"{EXAMPLES / 'blink.awl'}:11:1"
 

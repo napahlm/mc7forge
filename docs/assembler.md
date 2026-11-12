@@ -77,8 +77,8 @@ Its string form is `file:line:column: message; hint`.
   The reference block confirms this for real code: its `A I 0.1` is `c1 00`.
 - **Unverified rows are not used.** `L B#16#...` is refused, because the corpus and the C# decoder disagree on what its text means and a wrong guess would produce wrong code silently.
 - **Not yet supported.** Nesting operations, fully qualified data block addresses (they need `OPN DB`), `TRUE`/`FALSE`, and `L`/`T` on the peripheral area of the other direction have no row and raise `NotYetSupportedError` with the source location.
-- **No implicit `BE`.** The body is exactly the instructions of the source.
-  How a block is closed is decided together with the container in the next stage.
+- **No `BE` in the body.** The body is exactly the instructions of the source.
+  The closing `BE` is appended by the container builder, see [container.md](container.md).
 - **Accounting.** `compile_block` returns the bytes and offset of every instruction and the offset and size of every network.
 
 ## The correctness loop

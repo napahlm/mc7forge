@@ -43,6 +43,5 @@ examples/counter.awl:20:7   identifier  'L'
 examples/counter.awl:20:13  number      '13'
 examples/counter.awl:21:7   identifier  'T'
 examples/counter.awl:21:13  identifier  'QB0'
-examples/counter.awl:22:7   identifier  'BE'
-examples/counter.awl:23:1   keyword     'END_FUNCTION'
-examples/counter.awl:24:1   end
+examples/counter.awl:22:1   keyword     'END_FUNCTION'
+examples/counter.awl:23:1   end

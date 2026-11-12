@@ -1,0 +1,20 @@
+ORGANIZATION_BLOCK OB 1
+BEGIN
+NETWORK
+// The program of the reference block cm7.bin, as one network.
+// Building this file reproduces that block except for its checksum.
+      A     I 0.1
+      FP    M 0.0
+      S     Q 0.0
+      A     I 0.1
+      FN    M 0.1
+      R     Q 0.0
+      A     I 0.2
+      CD    C 0
+      A     I 0.3
+      CU    C 0
+      LC    C 0
+      T     QW 2
+      L     13
+      T     QB 0
+END_ORGANIZATION_BLOCK

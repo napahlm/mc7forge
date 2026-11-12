@@ -1,4 +1,4 @@
-"""Package-level guarantees: what is still an interface, and no PLC code in mc7asm."""
+"""Package-level guarantees: plain IR data, documented modules, and no PLC code in mc7asm."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import sys
 import pytest
 
 import mc7asm
-from mc7asm import BlockType, Mc7AsmError, NotYetImplementedError, container, ir
+from mc7asm import BlockType, ir
 
 MODULES: tuple[str, ...] = (
     "cli",
@@ -35,15 +35,6 @@ BLOCK = ir.Block(
     1,
     (ir.Network((ir.BitLogic(ir.BitOp.A, ir.BitAddress(ir.Area.I, 0, 0)), ir.BlockEnd())),),
 )
-
-
-def test_building_a_block_container_is_still_an_interface() -> None:
-    with pytest.raises(NotYetImplementedError, match="is not implemented yet") as caught:
-        container.build_image(BLOCK, b"\xc0\x00\x65\x00")
-    assert caught.value.feature == "building a block container"
-    assert str(caught.value).startswith("building a block container")
-    assert isinstance(caught.value, Mc7AsmError)
-    assert isinstance(caught.value, NotImplementedError)
 
 
 def test_ir_is_plain_immutable_data() -> None:

@@ -8,10 +8,13 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Callable, Sequence
+from datetime import datetime
 from pathlib import Path
+from typing import TextIO
 
 from mc7asm import __version__
 from mc7asm.codegen import compile_block
+from mc7asm.container import build_block
 from mc7asm.disasm import disassemble
 from mc7asm.errors import Mc7AsmError
 from mc7asm.image import BlockImage, parse_image
@@ -20,7 +23,7 @@ from mc7asm.opcodes import Mnemonics
 from mc7asm.parser import parse_file
 from mc7asm.printer import render_tokens, render_tree
 from mc7asm.report import render_disassembly, render_dump
-from mc7asm.validate import validate_image
+from mc7asm.validate import Finding, validate_generated_image, validate_image
 
 EXIT_OK = 0
 EXIT_FAILURE = 1
@@ -44,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mc7asm",
         description=(
-            "Inspect and disassemble S7-300 MC7 block images, parse and compile STL source. "
+            "Inspect and disassemble S7-300 MC7 block images, compile and build blocks from STL. "
             "Works on files only, never on a PLC."
         ),
     )
@@ -83,6 +86,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_mnemonics_option(compile_)
     compile_.set_defaults(handler=_cmd_compile)
+
+    summary = (
+        "Compile an STL source file and wrap the code into a complete block image. "
+        "Nothing is written unless the image passes validation."
+    )
+    build = commands.add_parser("build", help=summary, description=summary)
+    build.add_argument("file", type=Path, help="STL source file with one block")
+    build.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="file for the block image (default: the block name with .mc7 next to the source)",
+    )
+    build.add_argument(
+        "--timestamp",
+        type=datetime.fromisoformat,
+        metavar="ISO",
+        help="time stored in the block header, for example 2024-05-17T08:30:00 (default: now)",
+    )
+    _add_mnemonics_option(build)
+    build.set_defaults(handler=_cmd_build)
     return parser
 
 
@@ -144,3 +168,32 @@ def _cmd_compile(args: argparse.Namespace) -> int:
             f"{network.size} bytes at offset 0x{network.offset:04x}"
         )
     return EXIT_OK
+
+
+def _cmd_build(args: argparse.Namespace) -> int:
+    path: Path = args.file
+    compiled = compile_block(parse_file(path, Mnemonics(args.mnemonics)))
+    built = build_block(compiled, args.timestamp or datetime.now())
+    data = built.image.to_bytes()
+    # Validate what would be written, not the model it was written from.
+    image = parse_image(data)
+    findings = validate_generated_image(image)
+    if findings:
+        _print_findings(findings, sys.stderr)
+        raise Mc7AsmError(f"{path}: the built image failed validation, nothing was written")
+    header = image.header
+    output: Path = args.output or path.with_name(f"{header.name}.mc7")
+    output.write_bytes(data)
+    closing = "BE appended" if built.block_end_appended else "BE from the source"
+    print(f"{path}: {header.name}, {len(data)} bytes -> {output}")
+    print(
+        f"  code {header.mc7_length} bytes ({closing}), interface {header.interface_length}, "
+        f"segment table {header.segment_table_length}, local data {header.local_data_length}"
+    )
+    _print_findings(built.notes, sys.stdout)
+    return EXIT_OK
+
+
+def _print_findings(findings: Sequence[Finding], stream: TextIO) -> None:
+    for finding in findings:
+        print(f"  {finding.severity.value}: {finding.message} [{finding.code}]", file=stream)

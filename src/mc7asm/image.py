@@ -55,6 +55,14 @@ offset  size  field      notes
 Anything between the end of the declared sections and the footer is kept as
 :attr:`BlockImage.trailing_unknown`, so no byte is ever dropped.
 
+Block end. The code section of a code block ends with the instruction ``BE``
+(``65 00``), and those two bytes are counted in the MC7 length at offset 34.
+The reference block ends this way, and ToolBox ``MC7Converter.cs`` decodes
+``CodeSize - 2`` bytes because STEP 7 does not show that instruction. The
+source of a block therefore does not contain it: :mod:`mc7asm.container`
+appends it when it builds a block. The single network length in the segment
+table of the reference block (34) also excludes it.
+
 TODO(real-db-fixture): the DB layout is not settled by the sources. The ToolBox
 header comment gives fields 28 and 34 a second meaning for data blocks, while
 its code reads the interface and start-value lengths from the 7-byte sub-header
@@ -175,6 +183,19 @@ class S7Timestamp:
     def to_bytes(self) -> bytes:
         """Encode to the 6 wire bytes."""
         return _pack(_TIMESTAMP, "timestamp", self.milliseconds, self.days)
+
+    @classmethod
+    def from_datetime(cls, moment: datetime) -> S7Timestamp:
+        """Encode a point in time; anything below a millisecond is dropped.
+
+        Raises:
+            ImageFormatError: If the date is outside 1984-01-01 to 2163-06-06.
+        """
+        days = (moment.date() - S7_EPOCH.date()).days
+        if not 0 <= days <= 0xFFFF:
+            raise ImageFormatError(f"{moment.date()} is outside the range of a block timestamp")
+        midnight = moment.replace(hour=0, minute=0, second=0, microsecond=0)
+        return cls((moment - midnight) // timedelta(milliseconds=1), days)
 
     def to_datetime(self) -> datetime:
         """Return the point in time as a naive :class:`~datetime.datetime`."""

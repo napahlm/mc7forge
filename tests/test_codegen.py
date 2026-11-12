@@ -56,7 +56,9 @@ def test_german_source_compiles_to_the_same_body() -> None:
 
 def test_counter_example_is_the_code_of_the_reference_block() -> None:
     reference = parse_image(CM7.read_bytes()).payload
-    assert compile_block(parse_file(EXAMPLES / "counter.awl")).body == reference
+    body = compile_block(parse_file(EXAMPLES / "counter.awl")).body
+    assert body + bytes.fromhex("6500") == reference
+    assert not body.endswith(bytes.fromhex("6500"))
 
 
 @pytest.mark.parametrize("language", ["en", "de"])
@@ -79,9 +81,9 @@ def test_lengths_are_accounted_per_instruction_and_per_network() -> None:
     assert [(n.number, n.offset, n.size, len(n.instructions)) for n in compiled.networks] == [
         (1, 0, 8, 4),
         (2, 8, 42, 12),
-        (3, 50, 10, 4),
+        (3, 50, 8, 3),
     ]
-    assert compiled.size == 60 == len(compiled.body)
+    assert compiled.size == 58 == len(compiled.body)
     offset = 0
     for network in compiled.networks:
         assert network.offset == offset
@@ -113,11 +115,11 @@ def test_compile_on_the_command_line(
     assert cli.main(["compile", "examples/blink.awl", "-o", str(output)]) == 0
     assert output.read_bytes() == bytes.fromhex((GOLDEN / "blink.body.hex").read_text())
     assert capsys.readouterr().out == (
-        f"examples/blink.awl: OB1, 3 networks, 60 bytes of MC7 code -> {output}\n"
+        f"examples/blink.awl: OB1, 3 networks, 58 bytes of MC7 code -> {output}\n"
         '  network 1 "Latch the lamp": 4 instructions, 8 bytes at offset 0x0000\n'
         '  network 2 "Copy a word and load constants": 12 instructions, 42 bytes '
         "at offset 0x0008\n"
-        "  network 3: 4 instructions, 10 bytes at offset 0x0032\n"
+        "  network 3: 3 instructions, 8 bytes at offset 0x0032\n"
     )
 
 
@@ -127,12 +129,12 @@ def test_compile_defaults_to_a_body_file_next_to_the_source(
     source = tmp_path / "counter.awl"
     source.write_text((EXAMPLES / "counter.awl").read_text())
     assert cli.main(["compile", str(source)]) == 0
-    assert (tmp_path / "counter.body").read_bytes() == parse_image(CM7.read_bytes()).payload
+    assert (tmp_path / "counter.body").read_bytes() == parse_image(CM7.read_bytes()).payload[:-2]
     assert "1 network," not in capsys.readouterr().out
     german = tmp_path / "blink_de.awl"
     german.write_text((EXAMPLES / "blink_de.awl").read_text())
     assert cli.main(["compile", str(german), "--mnemonics", "de"]) == 0
-    assert (tmp_path / "blink_de.body").stat().st_size == 60
+    assert (tmp_path / "blink_de.body").stat().st_size == 58
 
 
 def test_nothing_is_written_when_compilation_fails(

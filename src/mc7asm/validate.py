@@ -16,7 +16,11 @@ from mc7asm.image import (
     KNOWN_ATTRIBUTE_BITS,
     LANGUAGE_NAMES,
     BlockImage,
+    BlockType,
 )
+
+BLOCK_END = b"\x65\x00"
+_CODE_BLOCKS = (BlockType.OB, BlockType.FC, BlockType.FB)
 
 
 class Severity(Enum):
@@ -96,5 +100,48 @@ def validate_image(image: BlockImage) -> list[Finding]:
             Severity.NOTE,
             "unknown-attribute-bits",
             f"attribute bits 0x{unknown_bits:02X} are not documented",
+        )
+    return findings
+
+
+def validate_generated_image(image: BlockImage) -> list[Finding]:
+    """Check an image this toolchain built, before it is written or sent anywhere.
+
+    A generated image has to be exact, so everything :func:`validate_image`
+    reports for a real block is an error here, and the block must be a closed
+    code block. Together that means:
+
+    * length field (offset 8) == file size == 36 + code length (offset 34) +
+      interface length (offset 28) + segment table length (offset 30) + 36,
+      with no unaccounted bytes,
+    * attribute, language and block type bytes hold documented values, and the
+      block is an OB, FC or FB,
+    * the code section ends with ``BE`` (``65 00``).
+
+    The footer checksum is not looked at. Its algorithm is not documented by
+    any source, so it is stored as it is and never verified or recomputed.
+    Real blocks are not judged by this function; for them the tolerant
+    :func:`validate_image` stays in force.
+    """
+    findings = [
+        Finding(Severity.ERROR, finding.code, finding.message) for finding in validate_image(image)
+    ]
+    header = image.header
+    if header.block_type is not None and header.block_type not in _CODE_BLOCKS:
+        findings.append(
+            Finding(
+                Severity.ERROR,
+                "not-a-code-block",
+                f"{header.name} is not an OB, FC or FB; only code blocks are generated",
+            )
+        )
+    if not image.payload.endswith(BLOCK_END) or len(image.payload) % 2:
+        findings.append(
+            Finding(
+                Severity.ERROR,
+                "missing-block-end",
+                "the code section does not end with BE (65 00): its last bytes are "
+                f"{image.payload[-2:].hex(' ') or 'missing'}",
+            )
         )
     return findings

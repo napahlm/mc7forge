@@ -1,9 +1,14 @@
 # mc7
 
-A small Python library and CLI for talking to a Siemens S7-300 PLC over ISO-on-TCP (RFC 1006, TCP port 102).
-It targets a CPU 317-2 DP reached through a CP 343-1 Ethernet module and is built on [python-snap7](https://github.com/gijzelaerr/python-snap7).
+An open-source toolchain for the Siemens S7-300, in two packages.
 
-This is stage one: the communication layer only.
+- `mc7` is a library and CLI for talking to the PLC over ISO-on-TCP (RFC 1006, TCP port 102).
+  It targets a CPU 317-2 DP reached through a CP 343-1 Ethernet module and is built on [python-snap7](https://github.com/gijzelaerr/python-snap7).
+- `mc7asm` is the start of an STL to MC7 assembler.
+  It is pure software, works on block files only and never talks to a PLC.
+  See [mc7asm](#mc7asm-block-images-and-the-assembler-skeleton).
+
+The communication layer provides:
 
 - Connect by IP at rack 0, slot 2, with clean connect/disconnect and context-manager support.
 - Read and write inputs (I), outputs (Q) and bit memory (M) by address.
@@ -260,6 +265,105 @@ Known differences and limits:
 - Deleting blocks, password sessions, timers and counters are out of scope for this stage.
 - `cpu_state()` reports start-up, HOLD and DEFECT as `STOP`, as python-snap7 does.
 
+## mc7asm: block images and the assembler skeleton
+
+`mc7asm` reads the block files that `mc7 upload` writes.
+In this stage it models the block container at field level and prints it; it does not decode or generate MC7 code yet.
+
+```bash
+mc7asm dump tests/fixtures/blocks/fake/OB1.mc7
+```
+
+The report lists every header and footer field with its offset, raw bytes and decoded value, then a hex dump of each section, then the findings:
+
+```text
+tests/fixtures/blocks/fake/OB1.mc7: OB1, 111 bytes
+
+Header (offset 0x0000, 36 bytes)
+  off  field                  raw                decoded
+    0  signature              70 70              pp
+    2  block version          01                 1
+    3  attributes             01                 LINKED
+    4  language               01                 STL
+    5  block type             08                 OB
+    6  block number           00 01              1
+    8  block length           00 00 00 6f        111
+   12  password               00 00 00 00        not set
+   16  last modified          00 00 ea 60 00 01  1984-01-02 00:01:00.000
+   22  last interface change  00 00 00 00 00 00  1984-01-01 00:00:00.000
+   28  interface length       00 1b              27
+   30  segment table length   00 06              6
+   32  local data length      00 14              20
+   34  MC7 code length        00 06              6
+
+Sections
+  offset  size  section
+  0x0000    36  Header
+  0x0024     6  MC7 code
+  0x002a    27  Interface
+  0x0045     6  Segment table
+  0x004b     0  Trailing unknown
+  0x004b    36  Footer
+...
+```
+
+### Block container layout
+
+A block image is a 36-byte header, the MC7 code (or the body of a data block), the interface, the segment table and a 36-byte footer.
+The field list with offsets, and which source documents each field, is in the module docstring of `src/mc7asm/image.py`.
+It is derived from two public reverse-engineering projects:
+
+- [DotNetSiemensPLCToolBoxLibrary](https://github.com/dotnetprojects/DotNetSiemensPLCToolBoxLibrary): `MC7Converter.cs`, `Helper.cs` and `S7Block.cs`.
+- [rz-libmc7](https://github.com/rizinorg/rz-libmc7): `src/plugin_bin.c` and its sample block.
+
+`mc7asm.image.parse_image` is lossless: `parse_image(data).to_bytes() == data` for every input it accepts.
+Three rules keep it that way:
+
+- The local data length at offset 32 is a size only; there is no local-data section in the image.
+- Bytes between the declared sections and the footer are kept as a "trailing unknown" region and reported, never dropped.
+- The length field at offset 8 is not enforced; a mismatch with the file size is reported as a finding.
+
+One question is open and marked `TODO(real-db-fixture)` in the code.
+The references do not settle the layout of data blocks, in particular whether start values are counted in the interface length.
+It will be decided from a real DB fixture, not guessed.
+
+### Modules
+
+| Module | State | Responsibility |
+| --- | --- | --- |
+| `mc7asm.image` | implemented | Typed model of the container: header fields, raw sections, footer fields. |
+| `mc7asm.validate` | implemented | Field-level findings: length field, sections that do not fit, unaccounted bytes, unknown codes. |
+| `mc7asm.report`, `mc7asm.cli` | implemented | The `mc7asm dump` report. |
+| `mc7asm.lexer`, `mc7asm.parser` | interface only | STL source to tokens to the intermediate representation. |
+| `mc7asm.ir` | data types only | Instructions, networks and blocks as the pipeline passes them on. |
+| `mc7asm.opcodes` | interface only | The table mapping STL operations to MC7 encodings. |
+| `mc7asm.container` | interface only | Wrap assembled code into a new block image. |
+| `mc7asm.disasm` | interface only | MC7 code back to the intermediate representation. |
+
+The interface-only functions raise `NotYetImplementedError`.
+A test checks that importing `mc7asm` never loads `mc7`, `snap7` or `socket`.
+
+### Reference corpus
+
+Block fixtures live in `tests/fixtures/blocks`, and every one of them must re-serialize byte for byte.
+
+```bash
+uv run python scripts/capture_fixtures.py --fake
+```
+
+This writes the synthetic stand-ins `OB1`, `FC1` and `DB1` to `tests/fixtures/blocks/fake`.
+They are uploaded from the fake PLC of the test suite, are committed, and a test fails if they differ from what the script produces.
+
+```bash
+uv run python scripts/capture_fixtures.py --host 192.168.0.10
+```
+
+This uploads OB1, the lowest-numbered FC and the lowest-numbered DB from a real PLC into `tests/fixtures/blocks/real`.
+Name the blocks to choose others, for example `OB1 FC5 DB10`.
+The capture is read-only: it lists and uploads blocks and does nothing else, which a test enforces.
+For each block it prints the section sizes and any finding, which is the information needed to settle the open DB question.
+Real blocks contain the program of the machine they come from, so check what you commit.
+
 ## Safety
 
 Writing outputs or bit memory, downloading blocks and stopping or starting the CPU change what the machine does.
@@ -274,6 +378,7 @@ uv run pytest
 
 The default run needs no hardware.
 It contains unit tests against a mocked snap7 client, end-to-end tests over TCP against python-snap7's S7 server, and end-to-end block transfer tests against the fake PLC.
+For `mc7asm` it contains the byte-for-byte round trip of every committed block fixture and tests of the image model, the validation and the dump report.
 
 The integration tests talk to a real S7-300 and are skipped unless a host is given:
 

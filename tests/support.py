@@ -91,7 +91,7 @@ def reference_blocks() -> dict[tuple[BlockType, int], bytes]:
             BlockType.OB,
             1,
             mc7=bytes.fromhex("600d 6009 6500"),
-            interface_entries=bytes.fromhex("0205 0205 0205 0205 0205 0205 0505 0505 0505 0e05"),
+            interface_entries=bytes(range(0x40, 0x54)),
         ),
         (BlockType.FC, 1): make_block(
             BlockType.FC,
@@ -102,7 +102,7 @@ def reference_blocks() -> dict[tuple[BlockType, int], bytes]:
             BlockType.DB,
             1,
             mc7=bytes.fromhex("0001 0002 0000 0003 3fc0 0000 0000 0000"),
-            interface_entries=bytes.fromhex("0501 0501 0701 0801"),
+            interface_entries=bytes(range(0x61, 0x69)),
         ),
     }
 

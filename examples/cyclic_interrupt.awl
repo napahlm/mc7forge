@@ -1,0 +1,8 @@
+ORGANIZATION_BLOCK OB 35
+TITLE = An organization block other than OB1
+BEGIN
+NETWORK
+TITLE = Copy a word on every cyclic interrupt
+      L     IW 0
+      T     MW 50
+END_ORGANIZATION_BLOCK

@@ -1,0 +1,12 @@
+FUNCTION FC 15 : VOID
+TITLE = Counters: CU, CD, LC
+BEGIN
+NETWORK
+TITLE = Count up and down, show the value
+      A     I 0.0
+      CU    C 1
+      A     I 0.1
+      CD    C 1
+      LC    C 1
+      T     QW 0
+END_FUNCTION

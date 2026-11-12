@@ -1,0 +1,19 @@
+FUNCTION FC 16 : VOID
+TITLE = Several networks, titles and comments
+BEGIN
+NETWORK
+TITLE = First network
+// Comment lines after the title belong to the network.
+      A     I 0.0         // a comment after a statement belongs to the statement
+      =     Q 0.0
+NETWORK
+// A network does not need a title.
+      A     I 0.1
+      =     Q 0.1
+NETWORK
+TITLE = An empty network is allowed
+NETWORK
+TITLE = Last network
+      L     MW 0
+      T     QW 2
+END_FUNCTION

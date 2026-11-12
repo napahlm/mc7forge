@@ -1,7 +1,7 @@
 # Block container
 
 This document describes how `mc7asm build` wraps compiled MC7 code into a block image, and what each byte it writes is based on.
-The field layout itself is documented in the module docstring of `src/mc7asm/image.py`.
+The layout itself is documented in [mc7-structure.md](mc7-structure.md); the decisions behind the builder are in [decisions.md](decisions.md).
 
 ## Design rule
 
@@ -10,71 +10,10 @@ It takes compiled code and a timestamp and returns a block image; it reads and w
 The command `mc7asm build` writes exactly one file, the one it is given.
 Building a block and loading it into a CPU are separate concerns: loading is `mc7 download`, which asks for confirmation and verifies the block afterwards.
 
-## The reference block, decoded
+## Layout
 
-`tests/fixtures/blocks/reference/cm7.bin` is a real OB1 of 142 bytes and the working example of a minimal organization block.
-
-| Offset | Bytes | Meaning |
-| --- | --- | --- |
-| 0 | `70 70` | signature |
-| 2 | `01` | block version |
-| 3 | `01` | attributes: linked |
-| 4 | `01` | language: STL |
-| 5 | `08` | block type: OB |
-| 6 | `00 01` | block number 1 |
-| 8 | `00 00 00 8e` | block length 142 |
-| 12 | `00 00 00 00` | password: none |
-| 16 | `03 4a 12 28 37 30` | last modified: 2022-09-06 15:19:45.960 |
-| 22 | `02 e1 6c 8c 2c 71` | last interface change: 2015-02-24 13:25:27.820 |
-| 28 | `00 1c` | interface length 28 |
-| 30 | `00 06` | segment table length 6 |
-| 32 | `00 14` | local data length 20 |
-| 34 | `00 24` | code length 36 |
-| 36 | 36 bytes | code: 15 instructions, the last one `65 00` (`BE`) |
-| 72 | 28 bytes | interface, see below |
-| 100 | `01 00 22 00 00 00` | segment table, see below |
-| 106 | 36 bytes | footer, see below |
-
-The sum 36 + 36 + 28 + 6 + 36 = 142 equals the length field and the file size.
-
-### Interface
-
-```text
-01  00 00  14 00  00 00  02 05 02 05 02 05 02 05 02 05 02 05  05 05 05 05 05 05  0e 05  20
-```
-
-| Bytes | Meaning | Source |
-| --- | --- | --- |
-| `01` | marks the interface of a code block | `MC7Converter.cs` comment on code blocks |
-| `00 00` | block number, little-endian, zero for an OB | same comment: "Zero on OB" |
-| `14 00` | length of the declarations, little-endian: 20 | `MC7Converter.cs` reads this word at interface offset 3 |
-| `00 00` | length of the start values, little-endian: none | `MC7Converter.cs`, "Start Value Length" at offset 5 |
-| 20 bytes | ten declarations of two bytes: data type, then declaration kind | `Parameter.cs` starts at byte 7 and reads these pairs |
-| `20` | one closing byte | not explained by any source |
-
-The ten declarations are six `02 05`, three `05 05` and one `0e 05`.
-In `S7DataRowType.cs` 0x02 is BYTE, 0x05 is INT and 0x0E is DATE_AND_TIME; in `Parameter.cs` the kind 0x05 is TEMP.
-These are the ten temporary variables of an OB1, its start information, and they add up to 6 + 6 + 8 = 20 bytes, which is the local data length in the header.
-
-The closing byte is not covered by the declared length of 20 and the C# reader never looks at it.
-It may be padding to an even length or a terminator.
-Both readings give the same result for a block without declarations: seven header bytes plus this one byte.
-
-### Segment table
-
-```text
-01 00  22 00  00 00
-```
-
-Read as little-endian words: 1 network, 34 bytes, 0.
-34 is the code length without the closing `BE`.
-`NetWork.cs` of the C# library reads the first word as a count and the following words as network lengths.
-The layout for more than one network is not confirmed by a real block; [opcodes.md](opcodes.md) lists the candidate readings.
-
-### Footer
-
-All 36 bytes are zero except the version byte `10` at footer offset 24 and the checksum `4d e5` at offset 26.
-Author, family and name are empty.
+The field map, the decoded reference block and the provenance of every field are in [mc7-structure.md](mc7-structure.md).
+This document only covers what the builder does with it.
 
 ## What the builder writes
 

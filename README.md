@@ -5,9 +5,9 @@ An open-source toolchain for the Siemens S7-300, in two packages.
 - `mc7` is a library and CLI for talking to the PLC over ISO-on-TCP (RFC 1006, TCP port 102).
   It targets a CPU 317-2 DP reached through a CP 343-1 Ethernet module and is built on [python-snap7](https://github.com/gijzelaerr/python-snap7).
 - `mc7asm` is the start of an STL to MC7 assembler.
-  So far it reads, dumps and disassembles block files, and compiles straight-line STL source into complete code blocks.
-  It is pure software, works on block files only and never talks to a PLC.
-  See [mc7asm](#mc7asm-block-images-and-the-assembler-skeleton).
+  It compiles straight-line STL source into complete code blocks, and dumps and disassembles block files.
+  It is pure software, works on files only and never talks to a PLC.
+  See [mc7asm](#mc7asm-the-assembler-toolchain).
 
 The communication layer provides:
 
@@ -266,134 +266,23 @@ Known differences and limits:
 - Deleting blocks, password sessions, timers and counters are out of scope for this stage.
 - `cpu_state()` reports start-up, HOLD and DEFECT as `STOP`, as python-snap7 does.
 
-## mc7asm: block images and the assembler skeleton
+## mc7asm: the assembler toolchain
 
-`mc7asm` reads the block files that `mc7 upload` writes.
-It models the block container at field level, prints it, and disassembles the MC7 code of OBs, FCs and FBs for the instruction forms in its opcode table.
-It also parses STL source, compiles it to MC7 code and wraps that code into a complete block image.
-No block built this way has been loaded into a CPU yet.
+`mc7asm` turns STL source into S7-300 block images and takes block images apart again.
+It works on files only.
 
-```bash
-mc7asm dump tests/fixtures/blocks/fake/OB1.mc7
-```
+### Scope
 
-The report lists every header and footer field with its offset, raw bytes and decoded value, then a hex dump of each section, then the findings:
+**This toolchain compiles and validates. It does not load anything onto a PLC.**
+Loading a block is the job of the stage-1 transfer module, `mc7 download`, and it is run deliberately by the operator: it asks for confirmation, sends the file and verifies the result.
+`mc7asm` never imports the communication package, and a test enforces that.
 
-```text
-tests/fixtures/blocks/fake/OB1.mc7: OB1, 111 bytes
+No block built by `mc7asm` has been loaded into a CPU yet.
+The layout it writes is confirmed against one real block; see [Verification](#verification) for what that covers.
 
-Header (offset 0x0000, 36 bytes)
-  off  field                  raw                decoded
-    0  signature              70 70              pp
-    2  block version          01                 1
-    3  attributes             01                 LINKED
-    4  language               01                 STL
-    5  block type             08                 OB
-    6  block number           00 01              1
-    8  block length           00 00 00 6f        111
-   12  password               00 00 00 00        not set
-   16  last modified          00 00 ea 60 00 01  1984-01-02 00:01:00.000
-   22  last interface change  00 00 00 00 00 00  1984-01-01 00:00:00.000
-   28  interface length       00 1b              27
-   30  segment table length   00 06              6
-   32  local data length      00 14              20
-   34  MC7 code length        00 06              6
+### Usage
 
-Sections
-  offset  size  section
-  0x0000    36  Header
-  0x0024     6  MC7 code
-  0x002a    27  Interface
-  0x0045     6  Segment table
-  0x004b     0  Trailing unknown
-  0x004b    36  Footer
-...
-```
-
-### Disassembling
-
-```bash
-mc7asm disasm tests/fixtures/blocks/reference/cm7.bin
-```
-
-```text
-tests/fixtures/blocks/reference/cm7.bin: OB1, 36 bytes of MC7 code
-
-  offset  bytes        instruction
-  0x0024  c1 00        A I 0.1
-  0x0026  49 30 00 00  FP M 0.0
-  0x002a  d0 80        S Q 0.0
-  ...
-  0x0044  4b 80        T QB 0
-  0x0046  65 00        BE
-
-Coverage: 36 of 36 code bytes decoded, 0 unknown
-
-Findings
-  none
-```
-
-`--mnemonics de` prints German (SIMATIC) spelling, for example `U E 0.1` and `S A 0.0`.
-
-The decoder is driven by the opcode table in `src/mc7asm/opcodes.py`, which is plain data: fixed bytes, mnemonic, operand form and length.
-A row is in the table only if vectors of the opcode corpus exercise it, and every row is cross-checked against the C# decoder of DotNetSiemensPLCToolBoxLibrary.
-[docs/opcodes.md](docs/opcodes.md) records the provenance of every row and the findings of the cross-check.
-
-The table covers the minimal subset: `A AN O ON = S R` on directly addressed bits, `L T` on directly addressed bytes, words and double words, and `L` with typed constants.
-It also has the few rows needed to decode the reference block completely: `FP`, `FN`, `CU`, `CD`, `LC` and `BE`.
-718 of the 2,531 corpus vectors decode, each to exactly its expected text and length; the rest are reported as unknown.
-
-Bytes the table does not know are never skipped.
-They are listed as `?? unknown opcode` at their offset and again under the findings, together with a warning that instruction boundaries after the first unknown opcode are not certain.
-Data blocks are rejected with a message, because their body holds values and not code.
-
-### Parsing and compiling STL
-
-```bash
-mc7asm parse examples/blink.awl
-```
-
-```text
-Block OB1 "Lamp control" at examples/blink.awl:1:1
-  Network 1 "Latch the lamp" at examples/blink.awl:4:1
-    // The start button sets the lamp, the stop button resets it.
-    BitLogic A at examples/blink.awl:7:7  // start button
-      BitAddress I 0.0 at examples/blink.awl:7:13
-    BitWrite S at examples/blink.awl:8:7
-      BitAddress Q 0.0 at examples/blink.awl:8:13
-...
-```
-
-`mc7asm parse --show-tokens` prints the token stream of the lexer instead.
-
-```bash
-mc7asm compile examples/counter.awl -o counter.body
-```
-
-```text
-examples/counter.awl: FC1, 2 networks, 34 bytes of MC7 code -> counter.body
-  network 1 "Edge-triggered set and reset": 6 instructions, 16 bytes at offset 0x0000
-  network 2 "Count and show the value": 8 instructions, 18 bytes at offset 0x0010
-```
-
-The output is the raw MC7 code only.
-`examples/counter.awl` is the program of the reference block, and its body is byte for byte the code section of `cm7.bin` without the closing `BE`, which the container adds.
-
-Both commands take `--mnemonics de` for German source (`U E 0.0`, `= A 0.0`, `ZV Z 1`).
-The source subset, the IR and the rules of the code generator are described in [docs/assembler.md](docs/assembler.md).
-In short:
-
-- A file holds one block: `ORGANIZATION_BLOCK OB 1`, `FUNCTION FC 1 : VOID` or `FUNCTION_BLOCK FB 1`, then `BEGIN`, networks and the matching `END_...`.
-- Statements: `A AN O ON = S R FP FN` on a bit, `L` with an address or a typed constant, `T` with an address, `CU CD LC` on a counter, `BE`, and the nesting forms `A( AN( O( ON( )`.
-- Syntax errors name the file, line and column, the offending text and a hint.
-- The code generator only uses rows of the opcode table.
-  Valid STL without a usable row is refused with "not yet supported": nesting, fully qualified `DB1.DBX 0.0` addresses, `TRUE`/`FALSE` and the unverified `B#16#` constant.
-
-The corpus is the arbiter of the whole chain.
-Every corpus vector goes through bytes, disassembly, parsing and code generation, and 714 of the 718 vectors the table covers come back identical.
-The other four are listed in the test with the reason: two are not the canonical encoding of their text, two belong to the unverified `B#16#` row.
-
-### Building a block
+Build a block image from source:
 
 ```bash
 mc7asm build examples/reference_ob1.awl -o OB1.mc7
@@ -404,91 +293,147 @@ examples/reference_ob1.awl: OB1, 142 bytes -> OB1.mc7
   code 36 bytes (BE appended), interface 28, segment table 6, local data 20
 ```
 
-`build` compiles the source, appends the closing `BE`, and wraps the code into a block image: header, code, interface, segment table and footer.
-It then parses the bytes it is about to write and validates them, and it writes nothing if that validation reports anything.
-`--timestamp` sets the time stored in the header, which makes a build reproducible.
+`build` compiles the source, appends the closing `BE`, wraps the code into a block image and validates the bytes it is about to write.
+If the validation reports anything, nothing is written.
+`--timestamp 2024-01-01T00:00:00` fixes the time stored in the header, which makes a build reproducible.
 
-The layout is grounded in one real block, the OB1 `cm7.bin`.
-Building `examples/reference_ob1.awl` with that block's timestamps reproduces it byte for byte except for the two checksum bytes.
-The checksum is written as zero: its algorithm is not documented, and the Snap7 client zeroes the field before a download as well.
-Everything that goes beyond that single-network OB1 is a generalization, and `build` says so in a note, for example for an FC or for a block with several networks.
+Look at a block image, built or uploaded:
 
-Building and loading are separate.
-`mc7asm` only writes a file; sending it to a CPU is the job of `mc7 download`, with its own confirmation.
-No block built by `mc7asm` has been loaded into a CPU yet, so treat the first download as an experiment on a CPU where a wrong block does no harm.
-[docs/container.md](docs/container.md) decodes the reference block and lists what is confirmed and what is generalized.
+```bash
+mc7asm dump OB1.mc7
+```
 
-### Opcode corpus
+```bash
+mc7asm disasm OB1.mc7
+```
 
-`tests/fixtures/corpus/test_simatic.c` is the decoder test table of rz-libmc7, vendored verbatim under LGPL-3.0-only with its licence text.
-`mc7asm.corpus` parses it with a strict line parser: every line of the table must be a vector, a disabled vector, a comment or the terminator, otherwise parsing fails with the line number.
-The tests pin the file hash and the vector counts, so a changed file cannot go unnoticed.
-`tests/fixtures/blocks/reference/cm7.bin` is the sample block of the same project, vendored the same way.
+```text
+OB1.mc7: OB1, 36 bytes of MC7 code
 
-### Block container layout
+  offset  bytes        instruction
+  0x0024  c1 00        A I 0.1
+  0x0026  49 30 00 00  FP M 0.0
+  ...
+  0x0046  65 00        BE
 
-A block image is a 36-byte header, the MC7 code (or the body of a data block), the interface, the segment table and a 36-byte footer.
-The field list with offsets, and which source documents each field, is in the module docstring of `src/mc7asm/image.py`.
-It is derived from two public reverse-engineering projects:
+Coverage: 36 of 36 code bytes decoded, 0 unknown
 
-- [DotNetSiemensPLCToolBoxLibrary](https://github.com/dotnetprojects/DotNetSiemensPLCToolBoxLibrary): `MC7Converter.cs`, `Helper.cs` and `S7Block.cs`.
-- [rz-libmc7](https://github.com/rizinorg/rz-libmc7): `src/plugin_bin.c` and its sample block.
+Findings
+  none
+```
 
-`mc7asm.image.parse_image` is lossless: `parse_image(data).to_bytes() == data` for every input it accepts.
-Three rules keep it that way:
+`dump` prints every header and footer field with offset, raw bytes and meaning, and a hex dump of each section.
+`disasm` lists the instructions; bytes it does not know appear as `?? unknown opcode` and again under the findings.
 
-- The local data length at offset 32 is a size only; there is no local-data section in the image.
-- Bytes between the declared sections and the footer are kept as a "trailing unknown" region and reported, never dropped.
-- The length field at offset 8 is not enforced; a mismatch with the file size is reported as a finding.
+Inspect the earlier steps of the pipeline:
 
-One question is open and marked `TODO(real-db-fixture)` in the code.
-The references do not settle the layout of data blocks, in particular whether start values are counted in the interface length.
-It will be decided from a real DB fixture, not guessed.
+```bash
+mc7asm parse examples/blink.awl
+```
+
+```bash
+mc7asm parse examples/blink.awl --show-tokens
+```
+
+```bash
+mc7asm compile examples/blink.awl -o blink.body
+```
+
+`parse` prints the typed intermediate representation with the source location of every node, `compile` writes the raw MC7 code without a container.
+
+`build`, `compile`, `parse` and `disasm` take `--mnemonics de` for German spelling (`U E 0.0`, `= A 0.0`, `ZV Z 1`).
+
+### Supported subset
+
+A source file holds one block: `ORGANIZATION_BLOCK OB n`, `FUNCTION FC n : VOID` or `FUNCTION_BLOCK FB n`, then `BEGIN`, networks with optional titles and comments, and the matching `END_...`.
+
+| Statements | Operands |
+| --- | --- |
+| `A`, `AN`, `O`, `ON`, `=`, `S`, `R`, `FP`, `FN` | a bit: `I 0.0`, `Q`, `M`, `L`, `DBX`, `DIX` |
+| `L`, `T` | a byte, word or double word: `MW 10`, `QD 4`, `DBW 2`, `PIW 256` and so on |
+| `L` | a constant: `100`, `L#100000`, `1.5`, `W#16#1F`, `DW#16#...`, `2#1010`, `'AB'`, `B#(1, 2)`, `C#100`, `D#2024-12-31`, `S5T#2S`, `T#1500MS`, `TOD#8:30:0.000` |
+| `CU`, `CD`, `LC` | a counter: `C 1` |
+
+[examples/](examples/README.md) has one source per feature with the image it builds to.
+
+Limits:
+
+- **Straight-line code only.** There are no jumps, labels, calls, timers or arithmetic yet.
+- **No declarations.** Declaration sections are a syntax error, so every operand is an absolute address and a built FC or FB has no parameters.
+- **Parsed but not compiled.** Parentheses (`A(` ... `)`), fully qualified data block addresses (`DB1.DBX 0.0`) and `TRUE`/`FALSE` are accepted by the parser and refused by the code generator with "not yet supported".
+- **`L B#16#...` is refused.** The two sources disagree on what its text means, and refusing beats silently emitting the wrong byte.
+- **Code blocks only.** Data blocks are not built; their layout is not settled.
+- **Real numbers** are printed with six decimals, so disassembling and reassembling is exact only for values six decimals can represent.
+- **The disassembler knows 156 instruction forms.** Everything else is reported as unknown, and after the first unknown opcode the instruction boundaries are not certain.
+
+Syntax errors name the file, line and column, the offending text and a hint.
+
+### Verification
+
+Everything is checked without hardware, against two external references.
+
+- **The opcode corpus**: the decoder test table of rz-libmc7, 2,531 vectors of bytes, expected text and expected length.
+  Every vector must decode to exactly its text or be reported as unknown; 718 decode.
+  Each of those then goes through parsing and code generation, and 714 come back byte for byte.
+  The other four are listed with their reasons in the [decision log](docs/decisions.md).
+- **The reference block**: `cm7.bin`, a real OB1 from the same project.
+  It decodes completely, and building its program from source reproduces it byte for byte except for the two checksum bytes.
+- **The examples**: every example builds to its committed image, validates, disassembles without unknown opcodes and reassembles to the same code.
+
+What this does not cover:
+
+- No built block has been loaded into a CPU.
+- The checksum is written as zero, because its algorithm is not documented; whether a CPU accepts that is open.
+- The layout of an FC or FB, of OBs other than OB1 and of blocks with several networks is generalized from the one real block. `mc7asm build` prints a note in each of these cases.
+- If Rizin's `rz-asm` with the mc7 plugin is installed, the tests also disassemble the example code with it and compare; without it that check is skipped.
+
+### Fixtures and how they were obtained
+
+| Fixture | Where | How it got there |
+| --- | --- | --- |
+| Opcode corpus | `tests/fixtures/corpus/test_simatic.c` | copied verbatim from rz-libmc7 at a pinned commit, LGPL-3.0-only, hash checked by a test |
+| Reference block | `tests/fixtures/blocks/reference/cm7.bin` | copied verbatim from rz-libmc7, same commit and licence |
+| Synthetic blocks | `tests/fixtures/blocks/fake/` | uploaded from the fake PLC of the test suite with `scripts/capture_fixtures.py --fake` |
+| Real blocks | `tests/fixtures/blocks/real/` | none yet; `scripts/capture_fixtures.py --host <ip>` uploads them read-only from a PLC |
+| Example images | `examples/expected/` | built with `scripts/build_examples.py` at a fixed timestamp |
+| Golden listings | `tests/fixtures/golden/` | output of `mc7asm` on the fixtures, reviewed and committed |
+
+The capture script only lists and uploads blocks.
+Real blocks contain the program of the machine they come from, so check what you commit.
+The synthetic blocks predate the decoding of the reference block and are structural stand-ins for the parser tests, not models of a real block.
+
+### Documentation
+
+| Document | Content |
+| --- | --- |
+| [docs/mc7-structure.md](docs/mc7-structure.md) | The block container: every field with offset, meaning and provenance, and the open questions. |
+| [docs/opcodes.md](docs/opcodes.md) | The instruction encodings, the cross-check of the two sources and the provenance of every opcode row. |
+| [docs/assembler.md](docs/assembler.md) | The source subset, the intermediate representation, syntax errors and the code generator. |
+| [docs/container.md](docs/container.md) | What `mc7asm build` writes, what is confirmed and what is generalized, and the validation before writing. |
+| [docs/decisions.md](docs/decisions.md) | The decision log: why the toolchain behaves as it does. |
+| [examples/README.md](examples/README.md) | One example per feature with its expected image. |
 
 ### Modules
 
-| Module | State | Responsibility |
-| --- | --- | --- |
-| `mc7asm.image` | implemented | Typed model of the container: header fields, raw sections, footer fields. |
-| `mc7asm.validate` | implemented | Field-level findings: length field, sections that do not fit, unaccounted bytes, unknown codes. |
-| `mc7asm.report`, `mc7asm.cli` | implemented | The `mc7asm dump` and `mc7asm disasm` reports. |
-| `mc7asm.opcodes` | implemented for decoding | The opcode table as data, with the German spellings. |
-| `mc7asm.disasm` | implemented | Table-driven decoder with unknown-opcode reporting. |
-| `mc7asm.corpus` | implemented | Typed model and strict parser of the opcode corpus. |
-| `mc7asm.lexer`, `mc7asm.parser` | implemented | STL source to tokens to the typed IR, with located syntax errors. |
-| `mc7asm.ir`, `mc7asm.source` | implemented | Typed IR: block, network, instruction and operand nodes with source locations. |
-| `mc7asm.notation` | implemented | Spelling of typed constants, shared by parser, printer and disassembler. |
-| `mc7asm.printer` | implemented | IR back to STL text and the tree of `mc7asm parse`. |
-| `mc7asm.codegen` | implemented for straight-line code | IR to MC7 bytes through the opcode table, with length accounting. |
-| `mc7asm.container` | implemented for OB, FC and FB | Wrap compiled code into a block image, closing it with `BE`. |
-
-A test checks that importing `mc7asm` never loads `mc7`, `snap7` or `socket`.
-
-### Reference corpus
-
-Block fixtures live in `tests/fixtures/blocks`, and every one of them must re-serialize byte for byte.
-
-```bash
-uv run python scripts/capture_fixtures.py --fake
-```
-
-This writes the synthetic stand-ins `OB1`, `FC1` and `DB1` to `tests/fixtures/blocks/fake`.
-They are uploaded from the fake PLC of the test suite, are committed, and a test fails if they differ from what the script produces.
-
-```bash
-uv run python scripts/capture_fixtures.py --host 192.168.0.10
-```
-
-This uploads OB1, the lowest-numbered FC and the lowest-numbered DB from a real PLC into `tests/fixtures/blocks/real`.
-Name the blocks to choose others, for example `OB1 FC5 DB10`.
-The capture is read-only: it lists and uploads blocks and does nothing else, which a test enforces.
-For each block it prints the section sizes and any finding, which is the information needed to settle the open DB question.
-Real blocks contain the program of the machine they come from, so check what you commit.
+| Module | Responsibility |
+| --- | --- |
+| `mc7asm.image` | Typed, lossless model of the container: header fields, raw sections, footer fields. |
+| `mc7asm.validate` | Findings for real blocks, and the strict profile for built ones. |
+| `mc7asm.corpus` | Typed model and strict parser of the opcode corpus. |
+| `mc7asm.opcodes` | The opcode table as data, with the German spellings. |
+| `mc7asm.notation` | Spelling of typed constants, shared by parser, printer and disassembler. |
+| `mc7asm.disasm` | Table-driven decoder with unknown-opcode reporting. |
+| `mc7asm.lexer`, `mc7asm.parser` | STL source to tokens to the typed IR, with located syntax errors. |
+| `mc7asm.ir`, `mc7asm.source` | The IR: block, network, instruction and operand nodes with source locations. |
+| `mc7asm.codegen` | IR to MC7 bytes through the opcode table, with length accounting. |
+| `mc7asm.container` | Compiled code to a block image, closing it with `BE`. Pure, no I/O. |
+| `mc7asm.printer`, `mc7asm.report`, `mc7asm.cli` | IR back to source, the reports, and the `mc7asm` command. |
 
 ## Safety
 
 Writing outputs or bit memory, downloading blocks and stopping or starting the CPU change what the machine does.
 Only use these on equipment you are responsible for, when it is in a safe state.
+A block built by `mc7asm` is new program code that no CPU has run yet; download the first ones only where a wrong block does no harm.
 Single-bit writes use the S7 bit transport, so the CPU changes only the addressed bit and neighbouring bits are never rewritten.
 
 ## Testing
@@ -503,6 +448,8 @@ For `mc7asm` it contains the byte-for-byte round trip of every committed block f
 It also runs the whole opcode corpus through the disassembler: every vector must decode to exactly its expected text and length or be reported as unknown, and the count of each is pinned.
 The same corpus then goes through the full loop of disassembly, parsing and code generation, and a seeded property test checks that generated code disassembles back to the IR it came from.
 `tests/expected_errors` holds one malformed source per syntax error together with the exact message it must produce.
+End-to-end tests take every example from source to image and back: build, validate, disassemble, reassemble, and compare with the committed image field for field.
+The documentation is tested as well: its field tables are checked against the code and the reference block, its numbers against the corpus, and its links against the files.
 
 The integration tests talk to a real S7-300 and are skipped unless a host is given:
 

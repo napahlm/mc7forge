@@ -134,6 +134,147 @@ The families still missing, in corpus terms:
 
 Jump targets need a decision first: the corpus prints them as absolute addresses from a base of 0x80000000.
 
+## Encoding reference
+
+This section states the encodings of the table in prose, family by family.
+Every statement is backed by rows of the generated table at the end and therefore by corpus vectors.
+`n` stands for a byte address, `b` for a bit number from 0 to 7.
+
+### Bit operations, 4 bytes
+
+```text
+byte 0      byte 1               bytes 2-3
+operation   v aaa 0 bbb          byte address, big-endian
+```
+
+| Byte 0 | `v` = 0 | `v` = 1 |
+| --- | --- | --- |
+| `00` | `A` | `AN` |
+| `01` | `O` | `ON` |
+| `09` | `S` | `R` |
+| `41` | `=` | not exercised |
+| `49` | `FP` | `FN` |
+
+`aaa` is the area: 1 `I`, 2 `Q`, 3 `M`, 4 `DBX`, 5 `DIX`, 6 `L`.
+`bbb` is the bit number; bit 3 of the byte is zero in every vector.
+Example: `00 b7 12 34` is `AN M 4660.7`.
+
+### Bit operations, 2 bytes
+
+```text
+byte 0              byte 1
+ooooo bbb           byte address
+```
+
+| Byte 0, bit number 0 | Bit memory `M` | Inputs and outputs |
+| --- | --- | --- |
+| `A` | `80` | `c0` |
+| `O` | `88` | `c8` |
+| `S` | `90` | `d0` |
+| `=` | `98` | `d8` |
+| `AN` | `a0` | `e0` |
+| `ON` | `a8` | `e8` |
+| `R` | `b0` | `f0` |
+
+For bit memory, byte 1 is the address, 0 to 255.
+For inputs and outputs, bit 7 of byte 1 selects the area, 0 for `I` and 1 for `Q`, and bits 0 to 6 are the address, 0 to 127.
+Examples: `87 ff` is `A M 255.7`, `c1 00` is `A I 0.1`, `d0 80` is `S Q 0.0`.
+There is no 2-byte form for `L`, `DBX`, `DIX`, `FP` or `FN`.
+
+### Load and transfer, 2 bytes
+
+| | Byte | Word | Double word |
+| --- | --- | --- | --- |
+| `L M..` | `0a` | `12` | `1a` |
+| `T M..` | `0b` | `13` | `1b` |
+| `L I..` / `L Q..` | `4a` | `52` | `5a` |
+| `T I..` / `T Q..` | `4b` | `53` | `5b` |
+
+Byte 1 is the address, with the same input/output flag in bit 7 as above.
+Examples: `12 0a` is `L MW 10`, `53 82` is `T QW 2`.
+
+### Load and transfer, 4 bytes
+
+```text
+byte 0   byte 1          bytes 2-3
+7e       aaaa 0 t ww     byte address, big-endian
+```
+
+`aaaa` is the area: 0 peripheral, 1 `I`, 2 `Q`, 3 `M`, 4 `DB`, 5 `DI`, 6 `L`.
+`ww` is the width: 1 byte, 2 word, 3 double word.
+`t` is 0 for `L` and 1 for `T`.
+The peripheral area is `PIB`/`PIW`/`PID` for `L` and `PQB`/`PQW`/`PQD` for `T`; the other direction has no row.
+Examples: `7e 46 00 02` is `T DBW 2`, `7e 01 01 00` is `L PIB 256`.
+
+### Constants
+
+`28 nn` loads a byte constant; its row is unverified, see below.
+`30 kk` is followed by a 16-bit value and `38 kk` by a 32-bit value, both big-endian.
+
+| `kk` | With `30` (16 bits) | With `38` (32 bits) |
+| --- | --- | --- |
+| `01` | | real number, IEEE 754 single precision |
+| `02` | binary, `2#...` | binary, `2#...` |
+| `03` | signed integer | signed integer, `L#...` |
+| `05` | one or two characters | three or four characters |
+| `06` | two bytes, `B#(a, b)` | four bytes, `B#(a, b, c, d)` |
+| `07` | hexadecimal word, `W#16#...` | hexadecimal double word, `DW#16#...` |
+| `08` | counter value, `C#...` | |
+| `09` | | time in milliseconds, `T#...MS` |
+| `0a` | date, `D#...` | |
+| `0b` | | time of day, `TOD#...` |
+| `0c` | S5 time, `S5T#...` | |
+
+How the values are stored:
+
+- **Characters** are right-aligned and padded with zero bytes on the left: `30 05 00 41` is `'A'`.
+- **Counter value**: three BCD digits, 0 to 999: `30 08 01 00` is `C#100`.
+- **Date**: days since 1990-01-01: `30 0a 00 01` is `D#1990-1-2`.
+- **S5 time**: bits 12 and 13 hold the time base (0: 10 ms, 1: 100 ms, 2: 1 s, 3: 10 s), the low 12 bits three BCD digits.
+  `30 0c 02 00` is `S5T#2S`, 200 times 10 ms.
+  The assembler uses the smallest base that represents the duration exactly.
+- **Time of day**: milliseconds since midnight.
+- **Time**: a 32-bit millisecond count; the corpus prints it unsigned, and whether it is signed is not established.
+
+`38 04`, a pointer constant, is in the corpus but not in the table, because its active and its disabled vectors contradict each other.
+
+### Counters and block end
+
+| Bytes | Instruction |
+| --- | --- |
+| `4c nn` | `LC C n` |
+| `54 nn` | `CD C n` |
+| `6c nn` | `CU C n` |
+| `65 00` | `BE` |
+
+### Seen in a real block
+
+The reference block `cm7.bin` uses these encodings, which is the only evidence from real code:
+
+```text
+c1 00         A I 0.1         2-byte bit operation on an input
+49 30 00 00   FP M 0.0        4-byte edge detection
+d0 80         S Q 0.0         2-byte bit operation on an output
+49 b1 00 00   FN M 0.1
+f0 80         R Q 0.0
+c2 00         A I 0.2
+54 00         CD C 0
+c3 00         A I 0.3
+6c 00         CU C 0
+4c 00         LC C 0
+53 82         T QW 2          2-byte transfer to an output word
+30 03 00 0d   L 13            16-bit integer constant
+4b 80         T QB 0
+65 00         BE
+```
+
+It shows that real code uses the 2-byte forms where they fit, which is why the assembler prefers the shortest encoding.
+
+## Assembling with the table
+
+The code generator uses the same rows in the other direction.
+The rules it follows, and the corpus vectors that do not survive a round trip, are recorded in [decisions.md](decisions.md): shortest encoding (D4), the two non-canonical vectors (D5), the refusal of `L B#16#` (D3) and of statements without a row (D8).
+
 ## German mnemonics
 
 `mc7asm disasm --mnemonics de` prints German (SIMATIC) spelling.

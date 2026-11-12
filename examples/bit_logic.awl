@@ -1,0 +1,19 @@
+FUNCTION FC 10 : VOID
+TITLE = Bit logic: A, AN, O, ON
+BEGIN
+NETWORK
+TITLE = Addresses that fit the 2-byte encodings
+      A     I 0.0
+      AN    I 0.1
+      O     Q 4.2
+      ON    M 10.3
+      =     Q 0.0
+NETWORK
+TITLE = Addresses and areas that need the 4-byte encoding
+      A     I 200.0
+      AN    M 300.1
+      O     L 0.0
+      ON    DBX 2.5
+      A     DIX 4.7
+      =     Q 128.0
+END_FUNCTION

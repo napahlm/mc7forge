@@ -1,0 +1,17 @@
+FUNCTION FC 11 : VOID
+TITLE = Writing bits: =, S, R
+BEGIN
+NETWORK
+TITLE = Latch an output
+      A     I 0.0
+      S     Q 0.0
+      A     I 0.1
+      R     Q 0.0
+NETWORK
+TITLE = Assign, set and reset in other areas
+      A     M 1.0
+      =     M 1.1
+      S     DBX 0.0
+      R     L 2.3
+      =     DIX 6.6
+END_FUNCTION

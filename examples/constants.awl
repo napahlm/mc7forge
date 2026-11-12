@@ -1,0 +1,29 @@
+FUNCTION FC 14 : VOID
+TITLE = Typed constants with L
+BEGIN
+NETWORK
+TITLE = Numbers
+      L     100
+      L     -5
+      L     L#100000
+      L     1.5
+      L     -2.5e3
+NETWORK
+TITLE = Bit patterns
+      L     W#16#1F
+      L     DW#16#DEADBEEF
+      L     2#1010
+      L     2#11110000111100001111
+      L     B#(10, 20)
+      L     B#(1, 2, 3, 4)
+      L     'A'
+      L     'ABC'
+NETWORK
+TITLE = Counter value, date and times
+      L     C#100
+      L     D#2024-12-31
+      L     S5T#2S
+      L     S5T#2H46M30S
+      L     T#1500MS
+      L     TOD#8:30:0.000
+END_FUNCTION

@@ -1,0 +1,12 @@
+FUNCTION FC 12 : VOID
+TITLE = Edge detection: FP, FN
+BEGIN
+NETWORK
+TITLE = One pulse on the rising edge, one on the falling edge
+      A     I 0.0
+      FP    M 20.0        // edge memory bit
+      =     M 20.1
+      A     I 0.0
+      FN    M 20.2
+      =     M 20.3
+END_FUNCTION

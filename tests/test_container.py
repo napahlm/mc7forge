@@ -38,7 +38,7 @@ FIXTURES = REPOSITORY / "tests" / "fixtures"
 CM7 = FIXTURES / "blocks" / "reference" / "cm7.bin"
 STAMP = datetime(2024, 5, 17, 8, 30, 0)
 BLOCK_END = bytes.fromhex("6500")
-BUILDABLE = ["blink", "blink_de", "counter", "reference_ob1"]
+BUILDABLE = sorted(path.stem for path in EXAMPLES.glob("*.awl") if path.stem != "nesting")
 
 
 def build(example: str, stamp: datetime = STAMP) -> BuiltBlock:
@@ -56,8 +56,8 @@ def build_source(statements: str, header: str = "FUNCTION FC 1 : VOID") -> Built
 
 
 def test_every_example_is_either_buildable_or_refused_by_the_code_generator() -> None:
-    names = sorted(path.stem for path in EXAMPLES.glob("*.awl"))
-    assert names == sorted([*BUILDABLE, "nesting"])
+    assert len(BUILDABLE) == 13
+    assert (EXAMPLES / "nesting.awl").is_file()
     with pytest.raises(NotYetSupportedError):
         build("nesting")
 

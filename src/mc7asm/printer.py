@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from mc7asm import ir
+from mc7asm.image import BlockType
 from mc7asm.lexer import Token, TokenKind
 from mc7asm.notation import format_constant, format_real
 from mc7asm.opcodes import GERMAN_AREAS, GERMAN_MNEMONICS, Mnemonics
@@ -45,6 +46,32 @@ def format_instruction(instruction: ir.Instruction, mnemonics: Mnemonics = Mnemo
     operand = ir.operand_of(instruction)
     name = format_mnemonic(instruction, mnemonics)
     return name if operand is None else f"{name} {format_operand(operand, mnemonics)}"
+
+
+_HEADERS = {
+    BlockType.OB: ("ORGANIZATION_BLOCK OB {number}", "END_ORGANIZATION_BLOCK"),
+    BlockType.FC: ("FUNCTION FC {number} : VOID", "END_FUNCTION"),
+    BlockType.FB: ("FUNCTION_BLOCK FB {number}", "END_FUNCTION_BLOCK"),
+}
+
+
+def format_source(block: ir.Block, mnemonics: Mnemonics = Mnemonics.EN) -> str:
+    """Write a block as STL source that the parser reads back into the same IR."""
+    header, end = _HEADERS[block.block_type]
+    lines = [header.format(number=block.number)]
+    if block.title:
+        lines.append(f"TITLE = {block.title}")
+    lines.append("BEGIN")
+    for network in block.networks:
+        lines.append("NETWORK")
+        if network.title:
+            lines.append(f"TITLE = {network.title}")
+        lines += [f"// {comment}" for comment in network.comment]
+        for instruction in network.instructions:
+            comment = f"  // {instruction.comment}" if instruction.comment else ""
+            lines.append(f"      {format_instruction(instruction, mnemonics)};{comment}")
+    lines.append(end)
+    return "\n".join(lines) + "\n"
 
 
 def render_tree(block: ir.Block) -> str:

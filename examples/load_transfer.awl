@@ -1,0 +1,28 @@
+FUNCTION FC 13 : VOID
+TITLE = Load and transfer: L, T on bytes, words and double words
+BEGIN
+NETWORK
+TITLE = Inputs, outputs and bit memory with 2-byte encodings
+      L     IB 0
+      T     QB 0
+      L     IW 2
+      T     QW 2
+      L     ID 4
+      T     QD 4
+      L     MB 10
+      T     MW 12
+      L     MD 14
+      T     MD 18
+NETWORK
+TITLE = Large addresses, data blocks, local data and peripherals
+      L     MW 1000
+      T     MD 2000
+      L     DBB 0
+      T     DBW 2
+      L     DBD 4
+      T     DIB 8
+      L     LW 2
+      T     LD 4
+      L     PIW 256
+      T     PQW 256
+END_FUNCTION

@@ -156,3 +156,47 @@ Loading changes a machine and is done deliberately by the operator with `mc7 dow
 
 **Enforced by.** `tests/test_mc7asm_skeleton.py` imports every module of `mc7asm` in a fresh interpreter and checks that none of the three was loaded.
 The only script that reads from a PLC, `scripts/capture_fixtures.py`, is limited to listing and uploading, which `tests/test_capture_fixtures.py` checks.
+
+## D13. The length field is binding for code blocks
+
+**Decision.** `validate_image` reports a length field at offset 8 that is not the file size as an error for an OB, FC or FB.
+For every other block type it stays a warning.
+Bytes that no length field accounts for stay a note, exactly as before.
+
+**Why.** The field is the file size in the reference block and in the OB1 and the FC1 uploaded from a CPU 317-2 DP, and the CPU reports the same number as the load size of the block.
+The real DB1 agrees as well, but one data block is the only evidence for its type, so the severity for it was left alone.
+
+**Details.** An error is still a finding and not a refusal: the image is parsed, dumped and written back unchanged.
+For built blocks nothing changes, because `validate_generated_image` already treats every finding as an error.
+
+**Enforced by.** `tests/test_image.py` for each block type, `tests/test_image_fixtures.py` for the blocks that came from a CPU.
+
+## D14. A data block is its current values, then its declarations
+
+**Decision.** For a DB the bytes at offset 36 are the current values, with the length at offset 34, and the section behind them is the interface, with the length at offset 28.
+This is the split the image model already made; the real DB1 confirmed it, and the model now also reads the 7-byte sub-header of the interface.
+Data blocks are still not built.
+
+**Why.** The real DB1 adds up exactly this way, its declarations describe as many bytes as the body has, the CPU lets one read exactly that many bytes, and the body follows the running program.
+The second meaning that the header comment of `MC7Converter.cs` gives the two fields does not fit any of that.
+The evidence is in [mc7-structure.md](mc7-structure.md#data-blocks).
+
+**Open.** No known block has start values, so `TODO(real-db-fixture)` stays, narrowed to that question.
+A block that declares start values is reported with the code `start-values`.
+
+**Enforced by.** `tests/test_image_fixtures.py`.
+
+## D15. Real blocks correct the builder; the reference block still defines what it writes
+
+**Decision.** The word after the kind byte of the interface is written as zero for every code block.
+Nothing else in the builder changed after the comparison with the real OB1 and FC1.
+
+**Why.** The builder wrote the block number there for an FC or FB, following a comment in `MC7Converter.cs`, and the real FC1 has zero.
+A real block outranks a comment.
+The real blocks were written in FBD, and what they have beyond the reference block belongs to that: `BLD` and `NOP 0` in the code, jump positions and one more word in the segment table.
+The builder writes STL blocks, and `cm7.bin` is the only STL block there is, so its form stays the model.
+
+**Consequence.** The images in `examples/expected` of every FC and FB changed in those two bytes.
+The notes of `mc7asm build` now say what is confirmed by a real block and what is not.
+
+**Enforced by.** `tests/test_container.py`, `tests/test_end_to_end.py`.

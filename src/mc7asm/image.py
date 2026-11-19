@@ -2,7 +2,8 @@
 
 This module works at field level only: it splits a block image into its header
 fields, its raw sections and its footer fields, and writes exactly the same
-bytes back. It does not decode MC7 instructions or the interface contents.
+bytes back. It does not decode MC7 instructions or interface declarations; of
+the interface it reads the 7-byte sub-header only.
 
 Sources
 -------
@@ -12,6 +13,9 @@ The layout is taken from two public reverse-engineering projects:
   (``ParseBlockHeaderAndFooterFromMC7``), ``Helper.cs`` and ``S7Block.cs``.
 * **rz**: rz-libmc7, ``src/plugin_bin.c`` (``mc7_parse_block``) and its sample
   block ``example/cm7.bin``.
+
+Where a statement is marked **real**, it was checked on blocks uploaded from a
+CPU 317-2 DP (OB1, FC1 and DB1; see ``docs/mc7-structure.md``).
 
 Header, 36 bytes, big-endian. Both sources agree on every offset:
 
@@ -31,12 +35,14 @@ offset  size  field                    notes
 28      2     interface length
 30      2     segment table length
 32      2     local data length        a size only, there are no such bytes here
-34      2     MC7 length               for a DB: length of the body at offset 36
+34      2     MC7 length               for a DB: length of its current values
 ======  ====  =======================  ============================================
 
 Body, in the order given by the ToolBox remarks and confirmed by adding up the
 rz sample (36 + 36 + 28 + 6 + 36 = 142 bytes, which is its length field):
-MC7 code (or the actual values of a DB), interface, segment table.
+MC7 code (or the current values of a DB), interface, segment table. The three
+real blocks add up the same way with no byte left over, and their length field
+is their file size.
 
 Footer, the last 36 bytes of the image. Only ToolBox parses it:
 
@@ -63,13 +69,25 @@ source of a block therefore does not contain it: :mod:`mc7asm.container`
 appends it when it builds a block. The single network length in the segment
 table of the reference block (34) also excludes it.
 
-TODO(real-db-fixture): the DB layout is not settled by the sources. The ToolBox
-header comment gives fields 28 and 34 a second meaning for data blocks, while
-its code reads the interface and start-value lengths from the 7-byte sub-header
-inside the interface. Whether start values are counted in field 28 has to be
-decided from a real DB fixture. Until then the split below is purely
-sequential and any start values that are not counted show up as
-``trailing_unknown`` (or in the segment table slot if field 30 is non-zero).
+Interface sub-header. The interface section starts with 7 bytes, little-endian
+(ToolBox ``MC7Converter.cs``; **real** on all three blocks and the rz sample):
+a kind byte, a word ToolBox calls the block number, the length of the
+declarations and the length of the start values. See :class:`InterfaceHeader`.
+In every known block exactly one more byte follows the declarations.
+
+Data blocks (**real**, DB1). Field 34 is the length of the body at offset 36,
+and that body holds the current values: its length is the size the
+declarations describe and the size the CPU lets one read, and its content
+follows the running program. Field 28 is the length of the interface section,
+as for a code block. The second meaning the ToolBox header comment gives the
+two fields for data blocks is not what the bytes show. A data block has no
+segment table and no local data.
+
+TODO(real-db-fixture): DB1 has no start values (sub-header word 0), and neither
+has any other known block. ToolBox places them behind the declarations, inside
+the interface section, and :func:`split_interface` follows that, but no block
+has shown it. What settles it is a block whose sub-header declares start
+values: ``validate_image`` reports such a block with the code ``start-values``.
 """
 
 from __future__ import annotations
@@ -83,6 +101,7 @@ from mc7asm.errors import ImageFormatError
 
 HEADER_SIZE = 36
 FOOTER_SIZE = 36
+INTERFACE_HEADER_SIZE = 7
 MIN_IMAGE_SIZE = HEADER_SIZE + FOOTER_SIZE
 SIGNATURE = b"pp"
 
@@ -92,6 +111,7 @@ S7_EPOCH = datetime(1984, 1, 1)
 _HEADER = struct.Struct(">2sBBBBHI4s6s6sHHHH")
 _FOOTER = struct.Struct(">8s8s8sBBH8s")
 _TIMESTAMP = struct.Struct(">IH")
+_INTERFACE_HEADER = struct.Struct("<BHHH")
 
 
 class BlockType(Enum):
@@ -404,6 +424,107 @@ class BlockFooter:
 
 
 @dataclass(frozen=True, slots=True)
+class InterfaceHeader:
+    """The 7-byte sub-header at the start of an interface section, little-endian.
+
+    Layout from ToolBox ``MC7Converter.cs``, which reads the two lengths at
+    section offsets 3 and 5. Values seen in real blocks:
+
+    =====  =========  ====  ======  ============  ============
+    block  language   kind  number  declarations  start values
+    =====  =========  ====  ======  ============  ============
+    OB1    STL (rz)   01    0       20            0
+    OB1    FBD        01    0       20            0
+    FC1    FBD        01    0       2             0
+    DB1    DB         05    1       98            0
+    =====  =========  ====  ======  ============  ============
+
+    Attributes:
+        kind: Kind of block (offset 0): ``01`` for the code blocks seen, ``05``
+            for the data block; ``0a`` marks an instance DB according to ToolBox.
+        number: The word at offset 1. ToolBox calls it the block number, zero
+            for an OB and the FB number for an instance DB. It is zero in the
+            real FC1 as well, and 1 in the real DB1.
+        declarations_length: Length of the declarations that follow (offset 3).
+        start_values_length: Length of the start values (offset 5).
+    """
+
+    kind: int
+    number: int
+    declarations_length: int
+    start_values_length: int
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> InterfaceHeader:
+        """Decode the first 7 bytes of an interface section.
+
+        Raises:
+            ImageFormatError: If there are fewer than 7 bytes.
+        """
+        if len(data) < INTERFACE_HEADER_SIZE:
+            raise ImageFormatError(
+                f"an interface sub-header is {INTERFACE_HEADER_SIZE} bytes, "
+                f"only {len(data)} available"
+            )
+        return cls(*_INTERFACE_HEADER.unpack_from(data))
+
+    def to_bytes(self) -> bytes:
+        """Encode to the 7 wire bytes."""
+        return _pack(
+            _INTERFACE_HEADER,
+            "interface sub-header",
+            self.kind,
+            self.number,
+            self.declarations_length,
+            self.start_values_length,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class InterfaceParts:
+    """An interface section split along its sub-header; the parts concatenate back.
+
+    Attributes:
+        header: The 7-byte sub-header.
+        declarations: The declarations, undecoded.
+        start_values: The start values, undecoded. Empty in every known block;
+            their position behind the declarations is taken from ToolBox.
+        rest: What follows. One byte of unknown meaning in every known block.
+    """
+
+    header: InterfaceHeader
+    declarations: bytes
+    start_values: bytes
+    rest: bytes
+
+    def to_bytes(self) -> bytes:
+        """Serialize the section; the inverse of :func:`split_interface`."""
+        return self.header.to_bytes() + self.declarations + self.start_values + self.rest
+
+
+def split_interface(interface: bytes) -> InterfaceParts | None:
+    """Split an interface section along its sub-header.
+
+    Returns:
+        The parts, or ``None`` if the section is shorter than the sub-header or
+        than the lengths the sub-header declares. Nothing is guessed then.
+    """
+    if len(interface) < INTERFACE_HEADER_SIZE:
+        return None
+    header = InterfaceHeader.from_bytes(interface)
+    declarations_end = INTERFACE_HEADER_SIZE + header.declarations_length
+    start_values_end = declarations_end + header.start_values_length
+    if start_values_end > len(interface):
+        return None
+    return InterfaceParts(
+        header,
+        interface[INTERFACE_HEADER_SIZE:declarations_end],
+        interface[declarations_end:start_values_end],
+        interface[start_values_end:],
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class Section:
     """One contiguous region of an image, for reports.
 
@@ -428,8 +549,8 @@ class BlockImage:
 
     Attributes:
         header: The 36-byte header.
-        payload: MC7 code of a code block, or the body of a data block.
-        interface: The interface section, undecoded.
+        payload: MC7 code of a code block, or the current values of a data block.
+        interface: The interface section as raw bytes; see :attr:`interface_parts`.
         segment_table: The segment table, undecoded.
         trailing_unknown: Bytes between the declared sections and the footer
             that no header length field accounts for.
@@ -476,6 +597,11 @@ class BlockImage:
             and len(self.interface) == self.header.interface_length
             and len(self.segment_table) == self.header.segment_table_length
         )
+
+    @property
+    def interface_parts(self) -> InterfaceParts | None:
+        """The interface split along its sub-header, or ``None`` if it does not fit."""
+        return split_interface(self.interface)
 
     def sections(self) -> tuple[Section, ...]:
         """Return all regions in image order with their offsets."""

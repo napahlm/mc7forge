@@ -52,7 +52,7 @@ mc7asm disasm examples/expected/bit_logic.mc7
 
 ## What these images are
 
-They are what this toolchain builds, checked against its own rules and against the one real block it knows.
+They are what this toolchain builds, checked against its own rules and against the reference block.
 `reference_ob1.mc7` has the same bytes as that real block except for the timestamps and the checksum.
 None of the images has been loaded into a CPU.
 

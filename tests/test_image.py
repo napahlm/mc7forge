@@ -17,10 +17,12 @@ from mc7asm import (
     BlockImage,
     BlockType,
     ImageFormatError,
+    InterfaceHeader,
     Mc7AsmError,
     S7Timestamp,
     Severity,
     parse_image,
+    split_interface,
     validate_image,
 )
 from tests.support import make_block
@@ -200,13 +202,107 @@ def test_unaccounted_bytes_are_kept_as_trailing_unknown() -> None:
     assert "20 byte(s)" in finding.message
 
 
-def test_length_field_mismatch_is_reported_not_rejected() -> None:
-    raw = patched(OB1, 8, struct.pack(">I", len(OB1) + 20))
+@pytest.mark.parametrize(
+    ("block_type", "severity"),
+    [
+        (mc7.blocks.BlockType.OB, Severity.ERROR),
+        (mc7.blocks.BlockType.FC, Severity.ERROR),
+        (mc7.blocks.BlockType.FB, Severity.ERROR),
+        (mc7.blocks.BlockType.DB, Severity.WARNING),
+        (mc7.blocks.BlockType.SDB, Severity.WARNING),
+    ],
+)
+def test_length_field_mismatch_is_reported_not_rejected(
+    block_type: mc7.blocks.BlockType, severity: Severity
+) -> None:
+    """Strict for code blocks, where every real block agrees; still parsed and kept."""
+    good = make_block(block_type, 1, mc7=bytes.fromhex("600d 6009 6500"))
+    assert validate_image(parse_image(good)) == []
+    raw = patched(good, 8, struct.pack(">I", len(good) + 20))
     image = parse_image(raw)
     assert image.to_bytes() == raw
     (finding,) = validate_image(image)
-    assert (finding.severity, finding.code) == (Severity.WARNING, "length-field")
-    assert f"says {len(OB1) + 20} bytes, the image is {len(OB1)} bytes" in finding.message
+    assert (finding.severity, finding.code) == (severity, "length-field")
+    assert f"says {len(good) + 20} bytes, the image is {len(good)} bytes" in finding.message
+
+
+def test_length_field_error_leaves_the_trailing_unknown_tolerance_alone() -> None:
+    raw = make_block(mc7=bytes(range(10)), unaccounted=bytes(7))
+    image = parse_image(raw)
+    assert image.header.length == image.size
+    assert [(f.severity, f.code) for f in validate_image(image)] == [
+        (Severity.NOTE, "trailing-unknown")
+    ]
+
+
+def test_interface_is_split_along_its_sub_header() -> None:
+    image = parse_image(OB1)
+    parts = image.interface_parts
+    assert parts is not None
+    assert parts.header == InterfaceHeader(
+        kind=0x01, number=0, declarations_length=4, start_values_length=0
+    )
+    assert (parts.declarations, parts.start_values, parts.rest) == (
+        bytes.fromhex("0205 0505"),
+        b"",
+        b"",
+    )
+    assert parts.to_bytes() == image.interface
+    assert parts.header.to_bytes() == image.interface[:7] == bytes.fromhex("01 0000 0400 0000")
+
+
+def test_interface_with_start_values_and_a_rest_is_split_and_noted() -> None:
+    section = bytes.fromhex("05 0100 0400 0300") + b"DECL" + b"STA" + b"\x49"
+    parts = split_interface(section)
+    assert parts is not None
+    assert (parts.header.kind, parts.header.number) == (0x05, 1)
+    assert (parts.declarations, parts.start_values, parts.rest) == (b"DECL", b"STA", b"\x49")
+    assert parts.to_bytes() == section
+    raw = bytearray(
+        make_block(mc7.blocks.BlockType.DB, 1, mc7=bytes(8), interface_entries=section[7:])
+    )
+    raw[36 + 8 : 36 + 8 + 7] = section[:7]
+    image = parse_image(bytes(raw))
+    assert image.interface == section
+    (finding,) = validate_image(image)
+    assert (finding.severity, finding.code) == (Severity.NOTE, "start-values")
+    assert "3 start-value byte(s)" in finding.message
+
+
+@pytest.mark.parametrize(
+    ("interface", "message"),
+    [
+        (bytes.fromhex("01 0000"), "is 3 byte(s), too short for its 7-byte sub-header"),
+        (
+            bytes.fromhex("01 0000 0a00 0200 0205"),
+            "declares 10 declaration byte(s) and 2 start-value byte(s), but only 2 byte(s) follow",
+        ),
+    ],
+)
+def test_interface_that_does_not_follow_its_sub_header_is_reported(
+    interface: bytes, message: str
+) -> None:
+    assert split_interface(interface) is None
+    good = parse_image(OB1)
+    header = replace(
+        good.header,
+        interface_length=len(interface),
+        length=good.size - len(good.interface) + len(interface),
+    )
+    image = replace(good, header=header, interface=interface)
+    assert parse_image(image.to_bytes()) == image
+    (finding,) = validate_image(image)
+    assert (finding.severity, finding.code) == (Severity.WARNING, "interface-lengths")
+    assert message in finding.message
+
+
+def test_an_empty_interface_is_not_a_finding() -> None:
+    assert split_interface(b"") is None
+    raw = patched(make_block()[:36], 28, bytes(8)) + bytes(36)
+    raw = patched(raw, 8, struct.pack(">I", len(raw)))
+    image = parse_image(raw)
+    assert (image.interface, image.interface_parts) == (b"", None)
+    assert validate_image(image) == []
 
 
 def test_bytes_appended_after_the_declared_length_stay_in_the_image() -> None:

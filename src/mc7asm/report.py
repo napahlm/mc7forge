@@ -53,6 +53,8 @@ def render_dump(label: str, image: BlockImage, findings: Sequence[Finding]) -> s
         if section.name in titles:
             lines.append(_region_title(titles[section.name], section.offset, len(section.data)))
             lines += _hexdump(section.data, section.offset, width)
+            if section.name == "interface" and section.data:
+                lines.append(_interface_summary(image))
             lines.append("")
     footer_offset = offsets["footer"]
     lines += [
@@ -63,6 +65,19 @@ def render_dump(label: str, image: BlockImage, findings: Sequence[Finding]) -> s
         *_finding_rows(findings),
     ]
     return "\n".join(lines) + "\n"
+
+
+def _interface_summary(image: BlockImage) -> str:
+    """One line on what the 7-byte interface sub-header declares."""
+    parts = image.interface_parts
+    if parts is None:
+        return "  sub-header: does not fit the section"
+    header = parts.header
+    return (
+        f"  sub-header: kind 0x{header.kind:02x}, number {header.number}, "
+        f"declarations {header.declarations_length} bytes, "
+        f"start values {header.start_values_length} bytes, {len(parts.rest)} byte(s) after them"
+    )
 
 
 def _payload_title(header: BlockHeader) -> str:

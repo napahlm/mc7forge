@@ -161,8 +161,7 @@ def test_container_structure_is_the_one_of_the_reference_block(
 
     marker, number, declared, start_values = struct.unpack_from("<BHHH", image.interface)
     is_ob = header.block_type is BlockType.OB
-    assert (marker, start_values) == (0x01, 0)
-    assert number == (0 if is_ob else header.number)
+    assert (marker, number, start_values) == (0x01, 0, 0)
     assert len(image.interface) == 7 + declared + 1
     assert image.interface[-1:] == b"\x20"
     assert declared == header.local_data_length == (20 if is_ob else 0)

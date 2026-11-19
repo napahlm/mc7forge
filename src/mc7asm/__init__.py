@@ -28,9 +28,12 @@ from mc7asm.image import (
     BlockHeader,
     BlockImage,
     BlockType,
+    InterfaceHeader,
+    InterfaceParts,
     S7Timestamp,
     Section,
     parse_image,
+    split_interface,
 )
 from mc7asm.opcodes import Mnemonics
 from mc7asm.parser import parse_file, parse_source, parse_statement
@@ -52,6 +55,8 @@ __all__ = [
     "Disassembly",
     "Finding",
     "ImageFormatError",
+    "InterfaceHeader",
+    "InterfaceParts",
     "Mc7AsmError",
     "Mc7SyntaxError",
     "Mnemonics",
@@ -70,6 +75,7 @@ __all__ = [
     "parse_image",
     "parse_source",
     "parse_statement",
+    "split_interface",
     "validate_generated_image",
     "validate_image",
 ]

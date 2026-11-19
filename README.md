@@ -22,7 +22,9 @@ The communication layer provides:
 Read this before pointing the tool at a machine.
 
 - Everything is tested against a mocked snap7 client, against python-snap7's built-in S7 server over real TCP, and against a fake PLC in `tests/support.py` that implements block upload and download.
-- Nothing has been run against a physical S7-300 yet.
+- The reading side has been run against one physical station: a CPU 317-2 DP (6ES7 317-2AJ10-0AB0, firmware V2.6.5) behind a CP 343-1, in RUN.
+  Connecting, identity and state, the block list, block upload and reads of inputs, outputs, bit memory and a data block worked, and the three read-only integration tests pass.
+- Nothing that writes has been run against a physical S7-300: no write to memory, no download, no start or stop.
   The optional integration tests exist for exactly that, see [Testing](#testing).
 - Block download is implemented in this package, not by python-snap7.
   python-snap7 3.x only downloads data blocks and never sends the final insert command, so a block would be stored but not activated.
@@ -278,7 +280,7 @@ Loading a block is the job of the stage-1 transfer module, `mc7 download`, and i
 `mc7asm` never imports the communication package, and a test enforces that.
 
 No block built by `mc7asm` has been loaded into a CPU yet.
-The layout it writes is confirmed against one real block; see [Verification](#verification) for what that covers.
+The layout it writes reproduces one published block and was compared with three blocks uploaded from a CPU; see [Verification](#verification) for what that covers.
 
 ### Usage
 
@@ -370,7 +372,7 @@ Syntax errors name the file, line and column, the offending text and a hint.
 
 ### Verification
 
-Everything is checked without hardware, against two external references.
+Everything is checked without hardware, against two external references and three blocks that were uploaded from a CPU once.
 
 - **The opcode corpus**: the decoder test table of rz-libmc7, 2,531 vectors of bytes, expected text and expected length.
   Every vector must decode to exactly its text or be reported as unknown; 718 decode.
@@ -378,13 +380,17 @@ Everything is checked without hardware, against two external references.
   The other four are listed with their reasons in the [decision log](docs/decisions.md).
 - **The reference block**: `cm7.bin`, a real OB1 from the same project.
   It decodes completely, and building its program from source reproduces it byte for byte except for the two checksum bytes.
+- **Real blocks**: an OB1, an FC1 and a DB1 uploaded from a CPU 317-2 DP.
+  They parse without a finding and add up exactly, and they settled several open layout questions; the [field map](docs/mc7-structure.md) marks each such statement.
+  Both code blocks were written in FBD, and most of their code is outside the instruction table: 46% of the OB1 and 14% of the FC1 decode, see [opcodes.md](docs/opcodes.md#coverage-on-real-blocks).
 - **The examples**: every example builds to its committed image, validates, disassembles without unknown opcodes and reassembles to the same code.
 
 What this does not cover:
 
 - No built block has been loaded into a CPU.
 - The checksum is written as zero, because its algorithm is not documented; whether a CPU accepts that is open.
-- The layout of an FC or FB, of OBs other than OB1 and of blocks with several networks is generalized from the one real block. `mc7asm build` prints a note in each of these cases.
+- An FC or FB without declarations, OBs other than OB1 and the end of the segment table of a block with several networks go beyond what any real block shows. `mc7asm build` prints a note in each of these cases.
+- Data blocks are read, not built, and where their start values are is still open.
 - If Rizin's `rz-asm` with the mc7 plugin is installed, the tests also disassemble the example code with it and compare; without it that check is skipped.
 
 ### Fixtures and how they were obtained
@@ -394,12 +400,17 @@ What this does not cover:
 | Opcode corpus | `tests/fixtures/corpus/test_simatic.c` | copied verbatim from rz-libmc7 at a pinned commit, LGPL-3.0-only, hash checked by a test |
 | Reference block | `tests/fixtures/blocks/reference/cm7.bin` | copied verbatim from rz-libmc7, same commit and licence |
 | Synthetic blocks | `tests/fixtures/blocks/fake/` | uploaded from the fake PLC of the test suite with `scripts/capture_fixtures.py --fake` |
-| Real blocks | `tests/fixtures/blocks/real/` | none yet; `scripts/capture_fixtures.py --host <ip>` uploads them read-only from a PLC |
+| Real blocks | `tests/fixtures/blocks/real/`, not in this repository | `OB1`, `FC1` and `DB1` of a CPU 317-2 DP, uploaded read-only with `scripts/capture_fixtures.py --host <ip>` |
 | Example images | `examples/expected/` | built with `scripts/build_examples.py` at a fixed timestamp |
 | Golden listings | `tests/fixtures/golden/` | output of `mc7asm` on the fixtures, reviewed and committed |
 
 The capture script only lists and uploads blocks.
-Real blocks contain the program of the machine they come from, so check what you commit.
+
+**The real fixtures exist, and they are kept out of this repository for confidentiality.**
+They come from a CPU that runs a real application: they carry author marks and live operational data, so `tests/fixtures/blocks/real/` is in `.gitignore`.
+The test suite is green both ways: with the blocks in place it holds them to the documented layout, and without them those tests are skipped and everything else runs.
+What they showed is written down in the [field map](docs/mc7-structure.md), which quotes structural bytes only (lengths, sub-headers, segment tables) and never program content or names.
+To get fixtures of your own, run the capture script against your PLC; real blocks contain the program of the machine they come from, so check what you commit.
 The synthetic blocks predate the decoding of the reference block and are structural stand-ins for the parser tests, not models of a real block.
 
 ### Documentation
@@ -444,7 +455,8 @@ uv run pytest
 
 The default run needs no hardware.
 It contains unit tests against a mocked snap7 client, end-to-end tests over TCP against python-snap7's S7 server, and end-to-end block transfer tests against the fake PLC.
-For `mc7asm` it contains the byte-for-byte round trip of every committed block fixture and tests of the image model, the validation and the dump report.
+For `mc7asm` it contains the byte-for-byte round trip of every block fixture and tests of the image model, the validation and the dump report.
+Blocks that came from a CPU, the reference block and the real captures where present, are also held to the documented layout: exact lengths, the closing `BE` behind the last network, and the interface sub-header.
 It also runs the whole opcode corpus through the disassembler: every vector must decode to exactly its expected text and length or be reported as unknown, and the count of each is pinned.
 The same corpus then goes through the full loop of disassembly, parsing and code generation, and a seeded property test checks that generated code disassembles back to the IR it came from.
 `tests/expected_errors` holds one malformed source per syntax error together with the exact message it must produce.

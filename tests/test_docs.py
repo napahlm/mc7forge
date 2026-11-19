@@ -18,6 +18,7 @@ from tests import test_roundtrip
 REPOSITORY = Path(__file__).parent.parent
 DOCS = REPOSITORY / "docs"
 CM7 = REPOSITORY / "tests" / "fixtures" / "blocks" / "reference" / "cm7.bin"
+REAL = REPOSITORY / "tests" / "fixtures" / "blocks" / "real"
 DOCUMENTS = sorted(
     [
         REPOSITORY / "README.md",
@@ -114,7 +115,15 @@ def test_interface_and_segment_table_quoted_in_the_field_map_are_the_real_bytes(
     reference = CM7.read_bytes()
     blocks = [block.strip() for block in re.findall(r"```text\n(.*?)```", text, re.S)]
     quoted = [bytes.fromhex(block) for block in blocks if re.fullmatch(r"[0-9a-f\s]+", block)]
-    assert quoted == [reference[72:100], reference[100:106]]
+    from_reference = [reference[72:100], reference[100:106]]
+    assert [chunk for chunk in quoted if chunk in from_reference] == from_reference
+    from_captures = [chunk for chunk in quoted if chunk not in from_reference]
+    assert len(from_captures) == 5
+    captures = [path.read_bytes() for path in sorted(REAL.glob("*.mc7"))]
+    if not captures:
+        pytest.skip("the real captures are not part of this checkout")
+    for chunk in from_captures:
+        assert any(chunk in capture for capture in captures), chunk.hex(" ")
 
 
 def test_decision_log_outcome_table_is_what_the_loop_produces() -> None:

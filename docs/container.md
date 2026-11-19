@@ -26,9 +26,9 @@ This document only covers what the builder does with it.
 | Code | the compiled body, plus `65 00` unless the source ends with `BE` | see "Block end" |
 | Code length | length of the code including the `BE` | the reference block |
 | Interface, OB | the 28 bytes of the reference block | copied |
-| Interface, FC and FB | `01`, block number little-endian, no declarations, closing `20` | generalized |
+| Interface, FC and FB | `01`, a zero word, no declarations, closing `20` | the sub-header of a real FC1; the empty declarations are generalized |
 | Local data length | 20 for an OB, 0 for an FC or FB without declarations | reference block; generalized for FC and FB |
-| Segment table | count, one length per network without the `BE`, zero word | confirmed for one network |
+| Segment table | count, one length per network without the `BE`, zero word | the reference block; count and lengths also seen on real blocks with 5 and 19 networks |
 | Footer | empty names, version `10`, checksum 0 | the reference block, except the checksum |
 | Block length | the size of the finished image | |
 
@@ -51,11 +51,19 @@ The Snap7 client sets the field to zero before it downloads a block, which is wh
 Confirmed by a real block: building `examples/reference_ob1.awl` with the timestamps of `cm7.bin` gives the same 142 bytes, except for the two checksum bytes.
 That covers the header, the code with its closing `BE`, the OB interface, the single-network segment table and the footer layout.
 
+Compared afterwards with an OB1 and an FC1 uploaded from a CPU 317-2 DP, both written in FBD; the evidence is in [mc7-structure.md](mc7-structure.md).
+
+- Confirmed: the length equation, the closing `BE` behind the last network, the network count and one length per network for 5 and 19 networks, and the form of the interface sub-header for an FC.
+- Corrected: the word after the kind byte of the interface is zero in the real FC1.
+  The builder used to write the block number there for an FC or FB, following a comment in `MC7Converter.cs`; it now writes zero.
+- Not imitated: the FBD blocks list the positions of their jumps in the segment table and end it with one more word.
+  The builder writes STL blocks without jumps, and the only STL block, `cm7.bin`, has a zero word there.
+
 Generalized, and reported by `mc7asm build` as a note:
 
-- the interface and the local data length of an FC or FB,
+- an FC without declarations, and everything about the interface of an FB, of which no real one has been examined,
 - the declarations of an OB other than OB1, which gets the temporary variables of OB1,
-- the segment table of a block with more than one network.
+- what follows the network lengths in the segment table of an STL block with more than one network.
 
 Not decided by any source:
 
@@ -71,14 +79,16 @@ If anything is reported, nothing is written.
 The checks are:
 
 - length field at offset 8 = file size = 36 + code length + interface length + segment table length + 36, with no unaccounted bytes,
+- the interface is as long as its sub-header says and declares no start values,
 - the attribute byte has only documented bits, the language code is a known one, and the block type is OB, FC or FB,
 - the code section ends with `65 00`.
 
 The checksum is not part of the validation.
-Blocks read from a PLC are not held to this profile: for them `validate_image` keeps its tolerance, so unaccounted bytes stay a note and a length mismatch stays a warning.
+Blocks read from a PLC are not held to this profile: for them `validate_image` keeps its tolerance, so unaccounted bytes stay a note.
+A length field that is not the file size is an error for a code block since the real blocks confirmed it, and a warning for other blocks; either way it is a finding, and the block is still parsed and dumped.
 
 ## Out of scope
 
 Data blocks are not built.
-Their layout is still open until a real DB fixture exists, see `TODO(real-db-fixture)` in `src/mc7asm/image.py`.
+A real DB1 settled where their values and their declarations are, but not where start values go, see `TODO(real-db-fixture)` in `src/mc7asm/image.py` and [mc7-structure.md](mc7-structure.md#data-blocks).
 Declaration sections in source are a syntax error, so a built FC or FB has no parameters or local variables.

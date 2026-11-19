@@ -50,6 +50,7 @@ MC7 code (offset 0x0024, 6 bytes)
 Interface (offset 0x002a, 27 bytes)
   002a  01 00 00 14 00 00 00 40  41 42 43 44 45 46 47 48  |.......@ABCDEFGH|
   003a  49 4a 4b 4c 4d 4e 4f 50  51 52 53                 |IJKLMNOPQRS|
+  sub-header: kind 0x01, number 0, declarations 20 bytes, start values 0 bytes, 0 byte(s) after them
 
 Segment table (offset 0x0045, 6 bytes)
   0045  01 00 04 00 00 00                                 |......|

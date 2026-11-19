@@ -7,12 +7,14 @@ will be added here once the parser exists.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
 from mc7asm.image import (
     FOOTER_SIZE,
     HEADER_SIZE,
+    INTERFACE_HEADER_SIZE,
     KNOWN_ATTRIBUTE_BITS,
     LANGUAGE_NAMES,
     BlockImage,
@@ -49,8 +51,19 @@ class Finding:
 def validate_image(image: BlockImage) -> list[Finding]:
     """Compare what the header declares with what the image contains.
 
-    The length field and unaccounted bytes are reported, not rejected: they are
-    the signals used to check the documented layout against real blocks.
+    Nothing is rejected: an image with findings can still be dumped and
+    re-serialized. The severities say how sure the layout is.
+
+    * A length field (offset 8) that is not the file size is an error for a
+      code block. It held on every real code block and on the reference block,
+      and the CPU reports the same number as the load size of the block. For
+      other block types it stays a warning, because one real DB is the only
+      evidence.
+    * Bytes that no header length field accounts for are a note, as before:
+      they are kept in the trailing unknown region.
+    * An interface whose sub-header declares more bytes than the section holds
+      is a warning, and declared start values are a note, because no known
+      block has any and their position is taken from ToolBox.
     """
     header = image.header
     findings: list[Finding] = []
@@ -60,7 +73,7 @@ def validate_image(image: BlockImage) -> list[Finding]:
 
     if header.length != image.size:
         add(
-            Severity.WARNING,
+            Severity.ERROR if header.block_type in _CODE_BLOCKS else Severity.WARNING,
             "length-field",
             f"block length field says {header.length} bytes, the image is {image.size} bytes",
         )
@@ -82,6 +95,7 @@ def validate_image(image: BlockImage) -> list[Finding]:
             f"{len(image.trailing_unknown)} byte(s) between the declared sections and the "
             "footer are not accounted for by any header length field",
         )
+    _check_interface(image, add)
     if header.block_type is None:
         add(
             Severity.WARNING,
@@ -104,6 +118,40 @@ def validate_image(image: BlockImage) -> list[Finding]:
     return findings
 
 
+def _check_interface(image: BlockImage, add: Callable[[Severity, str, str], None]) -> None:
+    """Report an interface section that does not follow its 7-byte sub-header."""
+    interface = image.interface
+    if not interface:
+        return
+    parts = image.interface_parts
+    if parts is None and len(interface) < INTERFACE_HEADER_SIZE:
+        add(
+            Severity.WARNING,
+            "interface-lengths",
+            f"the interface section is {len(interface)} byte(s), too short for its "
+            f"{INTERFACE_HEADER_SIZE}-byte sub-header",
+        )
+    elif parts is None:
+        declared = (
+            int.from_bytes(interface[3:5], "little"),
+            int.from_bytes(interface[5:7], "little"),
+        )
+        add(
+            Severity.WARNING,
+            "interface-lengths",
+            f"the interface sub-header declares {declared[0]} declaration byte(s) and "
+            f"{declared[1]} start-value byte(s), but only "
+            f"{len(interface) - INTERFACE_HEADER_SIZE} byte(s) follow it",
+        )
+    elif parts.start_values:
+        add(
+            Severity.NOTE,
+            "start-values",
+            f"the interface declares {len(parts.start_values)} start-value byte(s); no reference "
+            "block has any, so their position behind the declarations is unconfirmed",
+        )
+
+
 def validate_generated_image(image: BlockImage) -> list[Finding]:
     """Check an image this toolchain built, before it is written or sent anywhere.
 
@@ -114,6 +162,7 @@ def validate_generated_image(image: BlockImage) -> list[Finding]:
     * length field (offset 8) == file size == 36 + code length (offset 34) +
       interface length (offset 28) + segment table length (offset 30) + 36,
       with no unaccounted bytes,
+    * the interface follows its sub-header and declares no start values,
     * attribute, language and block type bytes hold documented values, and the
       block is an OB, FC or FB,
     * the code section ends with ``BE`` (``65 00``).

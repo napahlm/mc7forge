@@ -10,27 +10,35 @@ talks to a PLC is the ``mc7`` package, which this package never imports.
 What the builder relies on
 --------------------------
 The layout is the one documented in :mod:`mc7asm.image`. Every value that
-cannot be derived from the source is taken from the one real block in the
+cannot be derived from the source is taken from the reference block of the
 repository, the OB1 ``cm7.bin`` of rz-libmc7, the working example of a minimal
-organization block. ``docs/container.md`` decodes that block byte by byte.
+organization block written in STL. ``docs/container.md`` decodes that block
+byte by byte. Blocks uploaded from a CPU 317-2 DP (an OB1 and an FC1, both
+written in FBD) were compared afterwards; what they confirm or correct is
+marked "real" below.
 
 * **Block end.** ``BE`` (``65 00``) is appended as the last instruction unless
   the source already ends with it, and is counted in the code length.
-* **Interface.** A 7-byte sub-header (``01``, block number little-endian and
-  zero for an OB, length of the declarations little-endian, start value
-  length), the two-byte declarations, and one closing byte ``20``. An OB gets
-  the ten temporary variables of the reference block (20 bytes of start
-  information); an FC or FB compiled from source has no declarations.
+* **Interface.** A 7-byte sub-header (``01``, a zero word, length of the
+  declarations little-endian, start value length), the two-byte declarations,
+  and one closing byte ``20``. An OB gets the ten temporary variables of the
+  reference block (20 bytes of start information); an FC or FB compiled from
+  source has no declarations. Real: the word is zero in the FC1 as well, so
+  it is not the block number for a code block; one byte follows the
+  declarations in every block, with a different value each time.
 * **Segment table.** Little-endian words: the number of networks, the length
-  of each network in bytes without the closing ``BE``, and a zero word.
+  of each network in bytes without the closing ``BE``, and a zero word. Real:
+  count and lengths hold for 5 and for 19 networks. The FBD blocks continue
+  after the lengths with the positions of their jumps and one more word; the
+  STL reference block has the zero word only, which is what is written here.
 * **Footer.** Author, family and name empty, version byte ``10`` as in the
   reference block, and a zero checksum. The checksum algorithm is not
   documented by any source and is never computed here; the Snap7 client
   zeroes the field before a download as well.
 
-Only the single-network OB layout is confirmed by a real block: building the
-reference program reproduces ``cm7.bin`` except for its checksum. Everything
-else is a generalization and is reported as a note by :func:`build_block`.
+Only the single-network OB layout is reproduced exactly: building the
+reference program gives ``cm7.bin`` except for its checksum. What goes beyond
+it is reported as a note by :func:`build_block`.
 """
 
 from __future__ import annotations
@@ -48,6 +56,7 @@ from mc7asm.image import (
     BlockHeader,
     BlockImage,
     BlockType,
+    InterfaceHeader,
     S7Timestamp,
 )
 from mc7asm.validate import Finding, Severity
@@ -107,7 +116,7 @@ def build_block(
         raise ContainerError(
             f"{block.name}: the code is {len(code)} bytes, the limit is {MAX_SECTION_SIZE}"
         )
-    interface = build_interface(block.block_type, block.number)
+    interface = build_interface(block.block_type)
     segment_table = build_segment_table(network_lengths)
     if len(segment_table) > MAX_SECTION_SIZE:
         raise ContainerError(f"{block.name}: too many networks for the segment table")
@@ -151,14 +160,15 @@ def close_code(compiled: CompiledBlock) -> tuple[bytes, tuple[int, ...], bool]:
     return compiled.body + BLOCK_END, tuple(lengths), True
 
 
-def build_interface(block_type: BlockType, number: int) -> bytes:
-    """Build the interface section of a block without declarations of its own."""
-    is_ob = block_type is BlockType.OB
-    declarations = OB_START_INFORMATION if is_ob else b""
-    header = struct.pack(
-        "<BHHH", INTERFACE_CODE_BLOCK, 0 if is_ob else number, len(declarations), 0
-    )
-    return header + declarations + INTERFACE_TRAILER
+def build_interface(block_type: BlockType) -> bytes:
+    """Build the interface section of a block without declarations of its own.
+
+    The word after the kind byte is zero for every code block: it is zero in
+    the reference OB1 and in the real OB1 and FC1. No real FB has been examined.
+    """
+    declarations = OB_START_INFORMATION if block_type is BlockType.OB else b""
+    header = InterfaceHeader(INTERFACE_CODE_BLOCK, 0, len(declarations), 0)
+    return header.to_bytes() + declarations + INTERFACE_TRAILER
 
 
 def build_segment_table(network_lengths: tuple[int, ...]) -> bytes:
@@ -173,13 +183,22 @@ def _with_length(header: BlockHeader, length: int) -> BlockHeader:
 
 def _notes(block: ir.Block, network_count: int) -> tuple[Finding, ...]:
     notes = []
-    if block.block_type is not BlockType.OB:
+    if block.block_type is BlockType.FC:
         notes.append(
             Finding(
                 Severity.NOTE,
                 "generalized-interface",
-                f"the interface and the local data length of an {block.block_type.name} "
-                "without declarations are generalized from the OB1 reference block",
+                "the interface sub-header of an FC follows a real FC1; an FC without "
+                "declarations and its local data length of 0 are generalized",
+            )
+        )
+    elif block.block_type is BlockType.FB:
+        notes.append(
+            Finding(
+                Severity.NOTE,
+                "generalized-interface",
+                "no real FB has been examined; its interface and its local data length of 0 "
+                "are generalized from the real OB1 and FC1",
             )
         )
     elif block.number != 1:
@@ -196,8 +215,9 @@ def _notes(block: ir.Block, network_count: int) -> tuple[Finding, ...]:
             Finding(
                 Severity.NOTE,
                 "generalized-segment-table",
-                f"the segment table for {network_count} networks is generalized from the "
-                "single-network reference block",
+                f"the segment table for {network_count} networks has the count and the "
+                "lengths that real multi-network blocks show; whether an STL block needs "
+                "more than the zero word after them is not known",
             )
         )
     return tuple(notes)

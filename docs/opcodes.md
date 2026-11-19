@@ -98,7 +98,6 @@ The segment table follows the interface; on `cm7.bin` it is the 6 bytes `01 00 2
 The six bytes `01 00 00 14 00 00` quoted in the stage brief are not the segment table: they are the first six bytes of the interface at offset 0x48, directly after the code.
 
 `MC7Converter.cs` calls it the table of network lengths and reads it at 36 + code length + interface length.
-Its entry layout is not settled, so the table stays raw in this stage and no network boundaries are derived from it.
 Candidate readings of `01 00 22 00 00 00`, all as little-endian 16-bit words:
 
 1. Count, then one length per network, then a zero word: 1 network of 0x22 = 34 bytes.
@@ -107,10 +106,13 @@ Candidate readings of `01 00 22 00 00 00`, all as little-endian 16-bit words:
    With N = 1 it reads no length at all and would ignore the 0x22.
 3. A length list terminated by zero, with the first word meaning something else.
 
-A block with at least two networks is needed to decide between them.
+Two real blocks with 5 and 19 networks decided it: reading 1 is right about the count and the lengths.
+What it calls the zero word is a count of jump positions, and the blocks written in FBD carry one more word after those.
+The bytes and the evidence are in [mc7-structure.md](mc7-structure.md#segment-table).
 
-The container builder writes reading 1: the network count, one length per network without the closing `BE`, and a zero word.
-For one network this reproduces the bytes of `cm7.bin`; for several networks it is a generalization and `mc7asm build` reports it as a note.
+The container builder writes the network count, one length per network without the closing `BE`, and a zero word.
+For one network this reproduces the bytes of `cm7.bin`.
+For several networks the count and the lengths are what the real blocks show; whether an STL block has more behind them is not known, and `mc7asm build` says so in a note.
 The reader still keeps the table raw.
 
 ## Unknown opcodes
@@ -118,6 +120,11 @@ The reader still keeps the table raw.
 Bytes no row matches become an unknown-opcode entry with their offset and a finding; nothing is skipped silently.
 All instructions in the corpus are 2, 4 or 6 bytes long, so the decoder steps over one 2-byte word and continues.
 An unknown instruction may be longer than that, so a second finding states that instruction boundaries after the first unknown opcode are not certain.
+
+The real blocks show what that warning is worth.
+The operand of an unknown 4-byte or 6-byte instruction, and the parameter list behind a block call, are read as if they were instructions, and some of them match a row.
+In the real OB1 the listing shows `AN Q 34560.0` where the code has the parameters of a call.
+The coverage line of `mc7asm disasm` counts such bytes as decoded, so on code with unknown opcodes it is an upper bound, not a measurement.
 
 ## Not in the table yet
 
@@ -133,6 +140,55 @@ The families still missing, in corpus terms:
 - status word and address register operations.
 
 Jump targets need a decision first: the corpus prints them as absolute addresses from a base of 0x80000000.
+
+## Coverage on real blocks
+
+The two real code blocks, an OB1 and an FC1 uploaded from a CPU 317-2 DP, were written in FBD.
+Counted on true instruction boundaries, with the instruction lengths of the corpus for everything the table does not have:
+
+| Block | Code bytes | In the table | Outside the table | Call parameters | `mc7asm disasm` says |
+| --- | --- | --- | --- | --- | --- |
+| OB1 | 200 | 92 (46%) | 68 | 40 | 132 decoded, 68 unknown |
+| FC1 | 724 | 98 (14%) | 626 | 0 | 164 decoded, 560 unknown |
+
+Every byte of both blocks is accounted for by this count.
+The last column is the coverage line of the tool, which is too high for the reason given under [Unknown opcodes](#unknown-opcodes).
+What the table decodes is `A` and `=` on bit memory and local data, `L` of a constant, `T` to local data and `BE`.
+
+What is outside the table, most frequent first, with the text the corpus gives for these bytes:
+
+| Bytes | Corpus text | Length | OB1 | FC1 |
+| --- | --- | --- | --- | --- |
+| `10 nn` | `BLD nn` | 2 | 15 | 40 |
+| `fb 7c` | `CDB` | 2 | | 34 |
+| `00 00` | `NOP 0` | 2 | 4 | 19 |
+| `fb 79 nn nn` | `OPN DI nnnn` | 4 | | 17 |
+| `fe 6f nn nn` | `TAR2 LD nnnn` | 4 | | 17 |
+| `fe 0b` and a pointer | `LAR2 P#...` | 6 | | 17 |
+| `fb 72 nn nn` | `UC FC nnnn`, see below | 4 | | 17 |
+| `fe 6b nn nn` | `LAR2 LD nnnn` | 4 | | 17 |
+| `ff 98 nn nn` | `JNB` | 4 | | 9 |
+| `70 0b nn nn` | `JU` | 4 | 5 | 3 |
+| `3d nn` | `UC FC nn` | 2 | 5 | |
+| `fb 70 nn nn` | `UC FC nnnn` | 4 | | 3 |
+| `ba 00`, `bf 00` | `A(`, `)` | 2 | | 1 each |
+| `ff e0` | `A BR` | 2 | | 1 |
+
+This is the order in which rows pay off for code that a graphical editor produced.
+Three things in it need more than a table row:
+
+- **Block calls.**
+  A call is `UC`, then a `JU` over the parameter list, then four bytes per parameter that are data, not instructions.
+  The operand of that `JU` is the distance in words from the `JU` to the instruction behind the list; in OB1 it is 6 for two parameters, 14 for six and 2 for none.
+  A decoder has to follow it, and an assembler has to produce it.
+- **`fb 72` is a call of an FB.**
+  The corpus prints `UC FC 4660` for `fb 72 12 34`, the same text as for `fb 70 12 34`.
+  In the real FC1 each of the 17 `fb 72` instructions stands in the same sequence, `CDB`, `OPN DI n`, `TAR2`, `LAR2`, `fb 72 n`, `LAR2`, `CDB`, with the same number n in both places.
+  The CPU has an FB and a DB with each of those 17 numbers and no FC with any of them.
+  The three `fb 70` instructions name blocks that exist as FCs.
+  So a row for `fb 72` must not take its text from the corpus.
+- **Jumps.**
+  The positions of the `JNB` instructions are listed in the segment table, see [mc7-structure.md](mc7-structure.md#segment-table).
 
 ## Encoding reference
 

@@ -442,7 +442,7 @@ def test_layout_violations_are_reported_and_the_code_is_decoded_anyway(
     struct.pack_into(">I", raw, 8, len(raw) + 7)
     result = disassemble(parse_image(bytes(raw)))
     assert [finding.code for finding in result.findings] == ["length-field", "trailing-unknown"]
-    assert [finding.severity for finding in result.findings] == [Severity.WARNING, Severity.NOTE]
+    assert [finding.severity for finding in result.findings] == [Severity.ERROR, Severity.NOTE]
     assert [entry.data.hex() for entry in result.entries] == ["c100", "6500"]
     assert result.unknown_bytes == 0
 

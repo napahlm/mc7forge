@@ -154,7 +154,7 @@ def test_counter_code_is_the_codegen_output_plus_the_appended_block_end() -> Non
     assert built.block_end_appended
     assert [network.size for network in compiled.networks] == [16, 18]
     assert image.segment_table == bytes.fromhex("0200 1000 1200 0000")
-    assert image.interface == bytes.fromhex("01 0100 0000 0000 20")
+    assert image.interface == bytes.fromhex("01 0000 0000 0000 20")
     assert (image.header.interface_length, image.header.segment_table_length) == (8, 8)
     assert image.header.local_data_length == 0
     assert image.header.length == 36 + 36 + 8 + 8 + 36 == 124
@@ -195,8 +195,8 @@ def test_empty_network_still_gets_a_block_end() -> None:
     [
         ("ORGANIZATION_BLOCK OB 1", BlockType.OB, 1, "01 0000 1400 0000", 20, None),
         ("ORGANIZATION_BLOCK OB 35", BlockType.OB, 35, "01 0000 1400 0000", 20, "OB35 gets"),
-        ("FUNCTION FC 7", BlockType.FC, 7, "01 0700 0000 0000 20", 0, "of an FC"),
-        ("FUNCTION_BLOCK FB 300", BlockType.FB, 300, "01 2c01 0000 0000 20", 0, "of an FB"),
+        ("FUNCTION FC 7", BlockType.FC, 7, "01 0000 0000 0000 20", 0, "follows a real FC1"),
+        ("FUNCTION_BLOCK FB 300", BlockType.FB, 300, "01 0000 0000 0000 20", 0, "no real FB"),
     ],
 )
 def test_header_interface_and_notes_per_block_type(
@@ -357,10 +357,11 @@ def test_build_on_the_command_line(
     assert captured.out == (
         f"examples/counter.awl: FC1, 124 bytes -> {output}\n"
         "  code 36 bytes (BE appended), interface 8, segment table 8, local data 0\n"
-        "  note: the interface and the local data length of an FC without declarations are "
-        "generalized from the OB1 reference block [generalized-interface]\n"
-        "  note: the segment table for 2 networks is generalized from the single-network "
-        "reference block [generalized-segment-table]\n"
+        "  note: the interface sub-header of an FC follows a real FC1; an FC without "
+        "declarations and its local data length of 0 are generalized [generalized-interface]\n"
+        "  note: the segment table for 2 networks has the count and the lengths that real "
+        "multi-network blocks show; whether an STL block needs more than the zero word after "
+        "them is not known [generalized-segment-table]\n"
     )
     assert cli.main(["dump", str(output)]) == 0
     assert capsys.readouterr().out.endswith("Findings\n  none\n")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import struct
 from collections import Counter
@@ -147,6 +148,15 @@ def test_decision_log_outcome_table_is_what_the_loop_produces() -> None:
     for number in ("2,531", "718", "714", "156 instruction forms"):
         assert number in readme
     assert len(OPCODE_TABLE) == 156
+
+
+def test_decision_log_names_the_image_a_cpu_accepted() -> None:
+    """D16 is evidence about one exact image; a changed image is no longer covered by it."""
+    text = (DOCS / "decisions.md").read_text()
+    entry = text[text.index("## D16.") :]
+    image = build_examples.EXPECTED / "orphan.mc7"
+    assert f"SHA-256 `{hashlib.sha256(image.read_bytes()).hexdigest()}`" in entry
+    assert f"{image.stat().st_size} bytes" in entry
 
 
 def test_examples_index_lists_every_example() -> None:

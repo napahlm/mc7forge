@@ -325,6 +325,8 @@ Seen on REAL and CPU: for OB1 and FC1 the footer checksum is the checksum the CP
 For DB1 the CPU reports a non-zero checksum, and the uploaded image has zero.
 The body of an uploaded DB is its current values, so the checksum of the loaded block would not describe it.
 SCAN: the footer checksum is zero in all 86 uploaded data blocks.
+A block built by `mc7asm` with a zero checksum was loaded into the same CPU: it was accepted, the CPU reports zero for it, and the upload has zero.
+The pairs of footer field and reported value are collected in D16 of the [decision log](decisions.md).
 
 ## Data blocks
 
@@ -413,11 +415,11 @@ For images that `mc7asm` builds itself, `validate_generated_image` turns every o
 - The declarations of an instance DB, and structured types beyond array and structure.
 - The segment table behind the network lengths: the last word of the FBD blocks, and what an STL block with jumps or with several networks has there.
 - The block version byte at offset 2 and the footer bytes at 25 and 28.
-- The checksum algorithm, and whether a CPU accepts a zero checksum on download.
-- Whether "linked" should be set in a block that is about to be downloaded.
+- The checksum algorithm, and whether a CPU refuses a checksum that is neither zero nor right.
 - The interface of an FB and of OBs other than OB1.
 
 Answered by the real blocks since the first version of this document: the meaning of the fields 28 and 34 for a DB, where start values are, the byte after the declarations, the sub-header word of a data block, the segment table for more than one network, and the interface of an FC.
+Answered by loading a built block into the CPU: a zero checksum and the "linked" bit are accepted on download, see D16 in the [decision log](decisions.md).
 
 Each open item needs a real block, or a real CPU, to answer.
 `scripts/capture_fixtures.py` exists to bring such blocks into `tests/fixtures/blocks/real`.

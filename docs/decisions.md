@@ -203,3 +203,53 @@ The builder writes STL blocks, and `cm7.bin` is the only STL block there is, so 
 The notes of `mc7asm build` now say what is confirmed by a real block and what is not.
 
 **Enforced by.** `tests/test_container.py`, `tests/test_end_to_end.py`.
+
+## D16. A built block was loaded into a CPU, and the builder stays as it is
+
+**Outcome.** On 2026-11-19 the operator loaded `examples/expected/orphan.mc7` into a CPU 317-2 DP (6ES7 317-2AJ10-0AB0, firmware V2.6.5) that was in RUN.
+The image is FC 270, 112 bytes, SHA-256 `d492bd4e95cfdbd111e07d93899c730b6b7abdc4806cfafbc05097531e3e0db4`, built by `mc7asm` from `examples/orphan.awl`.
+It was the first block built by this toolchain to reach a CPU, and the first run of `mc7 download` against real hardware.
+The command asked for confirmation and then printed:
+
+```text
+FC270 downloaded (112 bytes)
+FC270 verified: the block in the PLC is identical to examples/expected/orphan.mc7
+```
+
+**Read back.** A separate upload afterwards, read-only, returned the same 112 bytes: no byte differs.
+The timestamps were not touched, and the footer checksum field came back as zero.
+`mc7asm disasm` reads the uploaded block as the six instructions of the source and the closing `BE`, with no unknown byte.
+The block list of the CPU gained FC 270 and changed in nothing else, and the CPU stayed in RUN.
+
+**What the CPU reports for the block.** Its block information says load size 112, MC7 size 26, SBB length 8, local data 0, flags `01`, language 1, version `10` and checksum 0.
+Each of these is the value of the matching field of the image.
+
+**Checksum pairs.** The footer field of a block and the checksum the CPU reports for it are logged here as they were read.
+No algorithm is inferred from them.
+
+| Block | Where it comes from | Footer field of the image | Reported by the CPU |
+| --- | --- | --- | --- |
+| OB1 of `cm7.bin` | rz-libmc7 sample, STL | `4d e5` | not known, the block was never in this CPU |
+| OB1 | uploaded from the CPU, FBD | `d6 ec` | `d6 ec` |
+| FC1 | uploaded from the CPU, FBD | `40 bf` | `40 bf` |
+| DB1 | uploaded from the CPU | `00 00` | `a1 8e` |
+| FC 270 | built by `mc7asm`, loaded by the operator | `00 00` | `00 00` |
+
+For the three code blocks the reported value is the footer field, zero included: the CPU did not put a value of its own in place of the zero.
+For DB1 the two differ, and the reported value was the same at two readings an hour and a half apart, while the values in the block had changed in between.
+FC 270 is the only pair whose block is public.
+
+**What this shows.** This CPU accepts the container `mc7asm` writes and stores it byte for byte: the STL language byte, the interface with a zero word and no declarations, the segment table of one network, the closing `BE`, the "linked" bit set in the image, and a zero checksum.
+
+**What it does not show.**
+
+- Nothing calls FC 270, so no instruction built by `mc7asm` has been executed by a CPU.
+- Whether the CPU would refuse a checksum that is neither zero nor right.
+- Anything about an OB, an FB, a block with several networks, a block that replaces an existing one, or another CPU or firmware.
+
+**Decision.** The builder is not changed: it keeps writing a zero checksum and the "linked" bit.
+Loading stays an act of the operator, run by hand with the confirmation of `mc7 download`.
+Tests that write to a PLC stay opt-in behind `--plc-allow-writes`, are skipped by a default test run, and take their host only from the command line or from the environment, never from the repository.
+
+**Enforced by.** `examples/expected/orphan.mc7` is the image the CPU accepted, and `tests/test_docs.py` checks that its hash is the one written here.
+If a change to the builder changes that image, this entry no longer covers what the builder writes.

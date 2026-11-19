@@ -65,12 +65,14 @@ Generalized, and reported by `mc7asm build` as a note:
 - the declarations of an OB other than OB1, which gets the temporary variables of OB1,
 - what follows the network lengths in the segment table of an STL block with more than one network.
 
-Not decided by any source:
+Not decided by any source, and since tried on one CPU:
 
-- whether a CPU accepts a zero checksum on download; Snap7's behaviour suggests it does,
-- whether the attribute byte should say "linked" in a block that is about to be downloaded.
+- a zero checksum on download: a CPU 317-2 DP accepted it and reports zero for the block,
+- the "linked" bit in a block that is about to be downloaded: the same CPU accepted the block with the bit set.
 
-No block built by `mc7asm` has been loaded into a CPU.
+One block built by `mc7asm` has been loaded into a CPU and came back byte for byte: `examples/expected/orphan.mc7`, an FC that nothing calls.
+No built block has been executed by a CPU.
+The record is D16 in the [decision log](decisions.md).
 
 ## Validation before writing
 

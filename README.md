@@ -24,7 +24,9 @@ Read this before pointing the tool at a machine.
 - Everything is tested against a mocked snap7 client, against python-snap7's built-in S7 server over real TCP, and against a fake PLC in `tests/support.py` that implements block upload and download.
 - The reading side has been run against one physical station: a CPU 317-2 DP (6ES7 317-2AJ10-0AB0, firmware V2.6.5) behind a CP 343-1, in RUN.
   Connecting, identity and state, the block list, block upload and reads of inputs, outputs, bit memory and a data block worked, and the three read-only integration tests pass.
-- Nothing that writes has been run against a physical S7-300: no write to memory, no download, no start or stop.
+- One download has been run against that station, by the operator at the bench: a 112-byte FC built by `mc7asm`, which nothing calls.
+  The CPU accepted it, stayed in RUN, and returned it byte for byte; see D16 in the [decision log](docs/decisions.md).
+- No other write has been run against a physical S7-300: no write to memory, no start or stop, no replacement of an existing block.
   The optional integration tests exist for exactly that, see [Testing](#testing).
 - Block download is implemented in this package, not by python-snap7.
   python-snap7 3.x only downloads data blocks and never sends the final insert command, so a block would be stored but not activated.
@@ -279,7 +281,9 @@ It works on files only.
 Loading a block is the job of the stage-1 transfer module, `mc7 download`, and it is run deliberately by the operator: it asks for confirmation, sends the file and verifies the result.
 `mc7asm` never imports the communication package, and a test enforces that.
 
-No block built by `mc7asm` has been loaded into a CPU yet.
+One block built by `mc7asm` has been loaded into a CPU: the example `orphan.awl`, an FC that nothing calls.
+A CPU 317-2 DP accepted it and returned it byte for byte, zero checksum included.
+No code built by `mc7asm` has been executed by a CPU yet.
 The layout it writes reproduces one published block and was compared with three blocks uploaded from a CPU; see [Verification](#verification) for what that covers.
 
 ### Usage
@@ -387,8 +391,8 @@ Everything is checked without hardware, against two external references and thre
 
 What this does not cover:
 
-- No built block has been loaded into a CPU.
-- The checksum is written as zero, because its algorithm is not documented; whether a CPU accepts that is open.
+- One built block has been loaded into a CPU, and none has been executed there; see D16 in the [decision log](docs/decisions.md).
+- The checksum is written as zero, because its algorithm is not documented. One CPU accepted that; another CPU or firmware may not.
 - An FC or FB without declarations, OBs other than OB1 and the end of the segment table of a block with several networks go beyond what any real block shows. `mc7asm build` prints a note in each of these cases.
 - Data blocks are read, not built.
 - If Rizin's `rz-asm` with the mc7 plugin is installed, the tests also disassemble the example code with it and compare; without it that check is skipped.
@@ -446,6 +450,14 @@ Writing outputs or bit memory, downloading blocks and stopping or starting the C
 Only use these on equipment you are responsible for, when it is in a safe state.
 A block built by `mc7asm` is new program code that no CPU has run yet; download the first ones only where a wrong block does no harm.
 Single-bit writes use the S7 bit transport, so the CPU changes only the addressed bit and neighbouring bits are never rewritten.
+
+Loading a block is done by hand: `mc7 download` asks for confirmation, and nothing in this repository runs it for you.
+Automated tests that write to a PLC stay behind three barriers:
+
+- **Flag-gated.** They only run with `--plc-allow-writes`, and each needs the name of what it may touch, see [Testing](#testing).
+- **Skipped by default.** A plain `uv run pytest`, which is all an automated run or a CI job executes, never runs a test that writes, and without a host it runs no test that talks to a PLC at all.
+- **Bound to a host you name.** No address is stored in the repository; the host comes only from `--plc-host` or from the environment variable `MC7_TEST_PLC_HOST`.
+  Point it at a sacrificial CPU, never at a machine that is in use.
 
 ## Testing
 

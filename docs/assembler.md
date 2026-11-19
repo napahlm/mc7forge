@@ -109,4 +109,4 @@ Further checks:
   Parsing that text back does not always give the same 32-bit value, so the disassemble-then-assemble loop is exact only for reals that six decimals represent exactly.
 - `T#` constants are plain millisecond counts and `TOD#` hours are not limited to 23, both as in the corpus.
 - The German spelling is not covered by corpus vectors; it is tested through the loop against the international form.
-- Nothing produced by `mc7asm compile` has been loaded into a PLC.
+- One block built from compiled code has been loaded into a PLC and read back unchanged, but nothing calls it: no compiled instruction has been executed by a PLC.

@@ -18,7 +18,7 @@ The images in `expected/` are committed, and a test fails if a build no longer p
 | `blink_de.awl` | the same program in German mnemonics | OB 1 | `expected/blink_de.mc7` |
 | `counter.awl` | the program of the reference block as an FC with two networks | FC 1 | `expected/counter.mc7` |
 | `reference_ob1.awl` | the program of the reference block as it is, one network in OB 1 | OB 1 | `expected/reference_ob1.mc7` |
-| `orphan.awl` | a block nothing calls, whose transfers write each value back where it came from; meant for a first download to a CPU | FC 270 | `expected/orphan.mc7` |
+| `orphan.awl` | a block nothing calls, whose transfers write each value back where it came from; the first image a CPU accepted | FC 270 | `expected/orphan.mc7` |
 | `nesting.awl` | statements that parse but are refused by the code generator | FB 7 | none |
 
 ## Building them
@@ -55,6 +55,7 @@ mc7asm disasm examples/expected/bit_logic.mc7
 
 They are what this toolchain builds, checked against its own rules and against the reference block.
 `reference_ob1.mc7` has the same bytes as that real block except for the timestamps and the checksum.
-None of the images has been loaded into a CPU.
+One of the images has been loaded into a CPU: `orphan.mc7`, which a CPU 317-2 DP accepted and returned byte for byte.
+None of the others has, and no image has been executed by a CPU.
 
 `nesting.awl` has no image on purpose: it uses parentheses, a fully qualified data block address and `TRUE`, which the code generator does not support yet.

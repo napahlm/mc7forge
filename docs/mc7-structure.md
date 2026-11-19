@@ -16,6 +16,7 @@ Nothing here was taken from Siemens documentation; the format is known from publ
 | REF | the reference block `tests/fixtures/blocks/reference/cm7.bin`, a real OB1 from rz-libmc7, written in STL | SHA-256 `089f010e...767c29` |
 | REAL | `OB1`, `FC1` and `DB1`, uploaded on 2026-11-19 from a CPU 317-2 DP (6ES7 317-2AJ10-0AB0, firmware V2.6.5) with `scripts/capture_fixtures.py`; both code blocks are written in FBD | SHA-256 `d8d1a126...710072`, `021a235d...fbf6f9`, `86e212fb...f4be7f` |
 | CPU | what the same CPU answered when asked about these blocks: block information, and the contents of DB1 read as data | read the same day with the `mc7` package |
+| SCAN | the header length fields and the interface sub-header of all 86 data blocks of the same CPU; each block was uploaded into memory, the lengths were noted and the block was discarded | the same day; no block content was kept |
 
 "Verified" in this document means: checked on the bytes of REF by a test in this repository.
 "Seen on REAL" means: observed on the three uploaded blocks, and checked by `tests/test_image_fixtures.py` in every checkout that has them.
@@ -39,6 +40,7 @@ Four blocks are still a thin basis, and each section says how far it reaches.
 - Seen on REAL: OB1 is 36 + 200 + 28 + 16 + 36 = 316, FC1 is 36 + 724 + 10 + 62 + 36 = 868 and DB1 is 36 + 2220 + 106 + 0 + 36 = 2398.
   Each sum is the length field and the file size, and no byte is left over.
 - CPU: the block information reports the same four numbers per block, as load size (offset 8), MC7 size (34), SBB length (28) and local data (32).
+- SCAN: all 86 data blocks add up the same way, length field = file size = 36 + body + interface + 36, with no segment table, no local data and no byte left over.
 - The footer is the last 36 bytes of the image (TB: "always located 36 bytes at the end").
 - The local data length at offset 32 is a size only. There are no local data bytes in the image.
 
@@ -98,6 +100,7 @@ TB notes that "linked" is clear while a code block has been downloaded but is no
 That matches what stage 1 found: a download is only activated by a final insert request.
 REF has `01`.
 Seen on REAL: all three blocks have `01` and no other bit; they were uploaded from a CPU in RUN.
+SCAN: 85 data blocks have `01` and one has `21`, linked and non-retain.
 
 ### Language (offset 4)
 
@@ -170,7 +173,7 @@ The 28 bytes of REF:
 | 3 | 2 | length of the declarations, little-endian | `14 00` = 20 | TB reads this word at section offset 3 |
 | 5 | 2 | length of the start values, little-endian | `00 00` | TB: "Start Value Length"; only FBs and DBs have start values |
 | 7 | 20 | declarations, two bytes each | see below | TB `Parameter.cs` starts parsing at byte 7 |
-| 27 | 1 | closing byte | `20` | not explained by any source |
+| 27 | 1 | padding byte | `20` | not read by any source; makes the section length even, see below |
 
 Seen on REAL, the interface of OB1, of FC1, and the start of the interface of DB1:
 
@@ -194,10 +197,11 @@ Seen on REAL, the interface of OB1, of FC1, and the start of the interface of DB
 | REAL DB1 | `05` | 1 | 98 | 0 | 1: `49` |
 
 - The kind byte is `05` for the data block, as TB says.
+  SCAN: 61 data blocks have `05` and 25 have `0a`, the instance DB of TB.
 - The word at offset 1 is zero in FC1 as well, so for a code block it is not the block number.
-  It is 1 in DB1; one data block cannot tell whether that is its own number.
+  SCAN: in all 61 blocks of the kind `05` it is the number of the block itself, and in all 25 of the kind `0a` it is the number of an FB that exists in the CPU.
 - The declarations length is exact in all four blocks, see below.
-- No block has start values.
+- None of these four blocks has start values; 17 of the 86 data blocks do, see [Data blocks](#data-blocks).
 
 Each declaration is a data type followed by a declaration kind.
 
@@ -235,10 +239,11 @@ Seen on REAL:
   Read this way the 98 declaration bytes are used up exactly, and they describe 2220 bytes of data, which is the length of the body of DB1.
   All its declarations have the kind STATIC.
 
-The closing byte lies outside the declared length and TB never reads it.
-In all four blocks exactly one byte follows the declarations.
-The two OB1 have the same sub-header and the same declarations and different closing bytes, so the byte is not computed from the interface.
-All four declaration lengths are even, so these blocks cannot tell padding to an even section length from a terminator.
+The last byte lies outside the declared lengths and TB never reads it.
+**It is padding: an interface section has an even length.**
+In all four blocks above one byte follows the declarations, and all four have an even declarations length, so they could not tell padding from a terminator.
+SCAN decided it: 73 data blocks have one byte behind declarations and start values and 13 have none, and in all 86 that is exactly what makes the section length even.
+The value of the byte means nothing: the two OB1 have the same sub-header and the same declarations and different bytes.
 
 `mc7asm` reads the sub-header of a parsed block (`InterfaceHeader`, `split_interface` in `src/mc7asm/image.py`) and keeps the declarations as raw bytes.
 The builder writes this structure, see [container.md](container.md).
@@ -302,7 +307,7 @@ Only TB parses it (`ParseBlockHeaderAndFooterFromMC7`); RZ stops after the heade
 | 0 | 8 | author | text | zeros | text in FC1 and DB1, padded with zero bytes; zeros in OB1 |
 | 8 | 8 | family | text | zeros | text in FC1, zeros in the others |
 | 16 | 8 | name | text, called "Header" in S7 | zeros | text in FC1, zeros in the others |
-| 24 | 1 | version | high nibble major, low nibble minor (TB `Helper.GetVersion`) | `10` | `01` in all three, version 0.1 |
+| 24 | 1 | version | high nibble major, low nibble minor (TB `Helper.GetVersion`) | `10` | `01` in all three, version 0.1; SCAN: `00`, `01`, `02`, `20` and `21` |
 | 25 | 1 | unknown | not parsed by any source | `00` | `00` |
 | 26 | 2 | checksum | algorithm not documented by any source | `4d e5` | non-zero in OB1 and FC1, `00 00` in DB1 |
 | 28 | 8 | unknown | not parsed by any source | zeros | zeros |
@@ -319,10 +324,12 @@ Snap7 sets the field to zero before it downloads a block (`opDownload` in `s7_mi
 Seen on REAL and CPU: for OB1 and FC1 the footer checksum is the checksum the CPU reports in its block information.
 For DB1 the CPU reports a non-zero checksum, and the uploaded image has zero.
 The body of an uploaded DB is its current values, so the checksum of the loaded block would not describe it.
+SCAN: the footer checksum is zero in all 86 uploaded data blocks.
 
 ## Data blocks
 
-Settled by the real DB1, except for start values.
+Settled by the real DB1 and by SCAN.
+How start values are encoded inside their region is the one thing not examined.
 
 **The body at offset 36 holds the current values, and the field at offset 34 is its length.**
 Three observations, independent of each other:
@@ -334,7 +341,7 @@ Three observations, independent of each other:
   The block was last modified years before the times in its body, so these are not the values it was loaded with.
 
 **The field at offset 28 is the length of the interface section**, as for a code block.
-In DB1 that is 106 bytes: the 7-byte sub-header with the kind `05`, 98 bytes of declarations and one closing byte.
+In DB1 that is 106 bytes: the 7-byte sub-header with the kind `05`, 98 bytes of declarations and one padding byte.
 
 A data block has no segment table and no local data; both fields are zero in DB1, and no byte is left over.
 Its footer checksum is zero, see above.
@@ -342,12 +349,22 @@ Its footer checksum is zero, see above.
 This is what the code of TB does.
 The comment in TB's header description gives the two fields a second meaning for data blocks, "DB body (actual values part) length" at offset 28 and "definitions/initial values" at offset 34, and that is not what a block from a CPU shows.
 
-**Still open: start values.**
-The sub-header word at offset 5 is zero in DB1 and in the three other blocks, and none of them has bytes that could be start values.
-TB reads them behind the declarations, inside the interface section; `split_interface` follows that, but no block has shown it.
-A block whose sub-header declares start values would settle where they are and whether the field at offset 28 counts them.
-`validate_image` reports such a block with the code `start-values`, so a capture that contains one says so.
-This is what is left of `TODO(real-db-fixture)` in `src/mc7asm/image.py`.
+**Start values lie behind the declarations, inside the interface section, and the field at offset 28 counts them.**
+That is how TB reads them, and DB1 could not show it, because its sub-header word at offset 5 is zero.
+SCAN found 17 data blocks that declare start values, 8 of the kind `05` and 9 of the kind `0a`, with 8 to 336 bytes of them.
+
+- In all 86 data blocks the interface length is 7 + declarations + start values + padding, and the block has no byte left over.
+  So the start values are inside the interface section; there is nowhere else for them.
+- In the 8 blocks of the kind `05` with start values, the declarations were walked from section offset 7 with the reading given under [Interface](#interface).
+  In each of them the walk uses exactly the declared length and describes exactly the length of the body, and it fails when the two parts are assumed in the other order.
+  So the declarations come first.
+- All 8 contain declarations of the kind `0c`, which is STATIC with the bit `08` that TB `Parameter.cs` calls "with a start value"; DB1 has none.
+  In three blocks of identical layout the sizes of the declarations marked this way, one byte per BOOL, add up to exactly the 175 bytes of start values.
+  In the other five that simple sum does not come out; how the start values of arrays, structures and strings are stored was not examined.
+- The declarations of the 9 instance DBs were not walked; for them only the lengths are known.
+
+This settled `TODO(real-db-fixture)`, and the item is gone from `src/mc7asm/image.py`.
+`split_interface` returns the start values as raw bytes.
 
 `mc7asm`:
 
@@ -384,21 +401,23 @@ For images that `mc7asm` builds itself, `validate_generated_image` turns every o
 | Segment table for one network | REF; rebuilt identically |
 | Network count and one length per network | REAL OB1 with 5 and FC1 with 19 networks; the lengths add up to the code without `BE` |
 | A DB body is the current values, in the declared size | REAL DB1 and what the CPU answers, see [Data blocks](#data-blocks) |
+| Start values behind the declarations, counted in the interface length | SCAN: 17 data blocks with start values, the order checked on 8 of them |
+| The interface section is padded to an even length | SCAN: 86 data blocks, 73 with a padding byte and 13 without; REF and REAL fit |
+| The sub-header word of a data block | SCAN: its own number in 61 shared DBs, the number of an existing FB in 25 instance DBs |
 | Footer position and fields | TB; REF rebuilt identically except the checksum; the checksum of REAL OB1 and FC1 is the one the CPU reports |
 | The image survives a round trip through this code | every fixture re-serializes byte for byte |
 
 ## Open questions
 
-- Start values of a data block: where they are, and whether the interface length counts them.
-- The byte after the declarations in the interface: `20`, `3a`, `50` and `49` so far.
-- The word at interface offset 1: zero in the code blocks, 1 in DB1.
+- How start values are encoded: only the plain case, one value per marked declaration and one byte per BOOL, was seen to add up.
+- The declarations of an instance DB, and structured types beyond array and structure.
 - The segment table behind the network lengths: the last word of the FBD blocks, and what an STL block with jumps or with several networks has there.
 - The block version byte at offset 2 and the footer bytes at 25 and 28.
 - The checksum algorithm, and whether a CPU accepts a zero checksum on download.
 - Whether "linked" should be set in a block that is about to be downloaded.
-- The interface of an FB, of an instance DB and of OBs other than OB1.
+- The interface of an FB and of OBs other than OB1.
 
-Answered by the real blocks since the first version of this document: the meaning of the fields 28 and 34 for a DB, the segment table for more than one network, and the interface of an FC.
+Answered by the real blocks since the first version of this document: the meaning of the fields 28 and 34 for a DB, where start values are, the byte after the declarations, the sub-header word of a data block, the segment table for more than one network, and the interface of an FC.
 
 Each open item needs a real block, or a real CPU, to answer.
 `scripts/capture_fixtures.py` exists to bring such blocks into `tests/fixtures/blocks/real`.

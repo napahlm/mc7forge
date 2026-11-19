@@ -21,11 +21,12 @@ marked "real" below.
   the source already ends with it, and is counted in the code length.
 * **Interface.** A 7-byte sub-header (``01``, a zero word, length of the
   declarations little-endian, start value length), the two-byte declarations,
-  and one closing byte ``20``. An OB gets the ten temporary variables of the
-  reference block (20 bytes of start information); an FC or FB compiled from
-  source has no declarations. Real: the word is zero in the FC1 as well, so
-  it is not the block number for a code block; one byte follows the
-  declarations in every block, with a different value each time.
+  and padding to an even length, the byte ``20``. An OB gets the ten temporary
+  variables of the reference block (20 bytes of start information); an FC or
+  FB compiled from source has no declarations. Real: the word is zero in the FC1 as well, so
+  it is not the block number for a code block. The byte after the
+  declarations is padding: a real interface section always has an even
+  length, and the value of the byte differs from block to block.
 * **Segment table.** Little-endian words: the number of networks, the length
   of each network in bytes without the closing ``BE``, and a zero word. Real:
   count and lengths hold for 5 and for 19 networks. The FBD blocks continue
@@ -69,7 +70,9 @@ LANGUAGE_STL = 0x01
 FOOTER_VERSION = 0x10
 
 INTERFACE_CODE_BLOCK = 0x01
-INTERFACE_TRAILER = b"\x20"
+# A real interface section has an even length. The value of the padding byte is
+# the one of the reference block; real blocks have a different one each.
+INTERFACE_PADDING = b"\x20"
 # The ten temporary variables every OB1 declares, as (data type, declaration kind)
 # pairs: six BYTE (02), three INT (05) and one DATE_AND_TIME (0e), all TEMP (05).
 OB_START_INFORMATION = bytes.fromhex("0205 0205 0205 0205 0205 0205 0505 0505 0505 0e05")
@@ -168,7 +171,8 @@ def build_interface(block_type: BlockType) -> bytes:
     """
     declarations = OB_START_INFORMATION if block_type is BlockType.OB else b""
     header = InterfaceHeader(INTERFACE_CODE_BLOCK, 0, len(declarations), 0)
-    return header.to_bytes() + declarations + INTERFACE_TRAILER
+    section = header.to_bytes() + declarations
+    return section + INTERFACE_PADDING * (len(section) % 2)
 
 
 def build_segment_table(network_lengths: tuple[int, ...]) -> bytes:

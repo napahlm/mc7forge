@@ -62,8 +62,8 @@ def validate_image(image: BlockImage) -> list[Finding]:
     * Bytes that no header length field accounts for are a note, as before:
       they are kept in the trailing unknown region.
     * An interface whose sub-header declares more bytes than the section holds
-      is a warning, and declared start values are a note, because no known
-      block has any and their position is taken from ToolBox.
+      is a warning. Start values are not a finding: real data blocks have
+      them, behind the declarations.
     """
     header = image.header
     findings: list[Finding] = []
@@ -143,13 +143,6 @@ def _check_interface(image: BlockImage, add: Callable[[Severity, str, str], None
             f"{declared[1]} start-value byte(s), but only "
             f"{len(interface) - INTERFACE_HEADER_SIZE} byte(s) follow it",
         )
-    elif parts.start_values:
-        add(
-            Severity.NOTE,
-            "start-values",
-            f"the interface declares {len(parts.start_values)} start-value byte(s); no reference "
-            "block has any, so their position behind the declarations is unconfirmed",
-        )
 
 
 def validate_generated_image(image: BlockImage) -> list[Finding]:
@@ -162,7 +155,7 @@ def validate_generated_image(image: BlockImage) -> list[Finding]:
     * length field (offset 8) == file size == 36 + code length (offset 34) +
       interface length (offset 28) + segment table length (offset 30) + 36,
       with no unaccounted bytes,
-    * the interface follows its sub-header and declares no start values,
+    * the interface is as long as its sub-header says,
     * attribute, language and block type bytes hold documented values, and the
       block is an OB, FC or FB,
     * the code section ends with ``BE`` (``65 00``).

@@ -164,7 +164,8 @@ For every other block type it stays a warning.
 Bytes that no length field accounts for stay a note, exactly as before.
 
 **Why.** The field is the file size in the reference block and in the OB1 and the FC1 uploaded from a CPU 317-2 DP, and the CPU reports the same number as the load size of the block.
-The real DB1 agrees as well, but one data block is the only evidence for its type, so the severity for it was left alone.
+The real DB1 agrees as well, but one data block was the only evidence for its type, so the severity for it was left alone.
+The later scan found the same for all 86 data blocks of that CPU; raising the severity for data blocks is a decision that has not been taken.
 
 **Details.** An error is still a finding and not a refusal: the image is parsed, dumped and written back unchanged.
 For built blocks nothing changes, because `validate_generated_image` already treats every finding as an error.
@@ -181,8 +182,10 @@ Data blocks are still not built.
 The second meaning that the header comment of `MC7Converter.cs` gives the two fields does not fit any of that.
 The evidence is in [mc7-structure.md](mc7-structure.md#data-blocks).
 
-**Open.** No known block has start values, so `TODO(real-db-fixture)` stays, narrowed to that question.
-A block that declares start values is reported with the code `start-values`.
+**Start values.** DB1 has none, so the question where they are stayed open at first.
+A scan of all 86 data blocks of the same CPU, which kept lengths only, settled it: they lie behind the declarations inside the interface section, and the field at offset 28 counts them.
+`TODO(real-db-fixture)` is closed, and the finding `start-values` that announced such a block is gone again.
+The same scan showed that an interface section is padded to an even length, which is what the byte after the declarations is.
 
 **Enforced by.** `tests/test_image_fixtures.py`.
 

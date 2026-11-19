@@ -40,11 +40,9 @@ The evidence is written down in [docs/mc7-structure.md](../../../docs/mc7-struct
 - The segment table is a network count and one length per network, followed by more.
 - A data block is its current values (length at offset 34) followed by its declarations (length at offset 28).
 
-## Open question a further capture must answer
+## Settled without a fixture
 
-`TODO(real-db-fixture)` in `src/mc7asm/image.py`: no block so far has start values.
-When a block is captured that has them, the capture script prints a `start-values` note for it.
-Look at `mc7asm dump` then:
-
-- if the interface line says "0 byte(s) after them" or "1 byte(s) after them", the start values lie behind the declarations as assumed,
-- an `interface-lengths` finding or a non-zero "trailing unknown" size means they lie somewhere else.
+`TODO(real-db-fixture)` asked where the start values of a data block are; none of the three real blocks has any.
+It was settled by looking at all 86 data blocks of the same CPU: each was uploaded into memory, its header length fields and its interface sub-header were noted, and the block was discarded.
+Start values lie behind the declarations, inside the interface section, and an interface section is padded to an even length.
+No fixture came out of that scan, so no test holds a block with start values to this; the evidence is in the field map.

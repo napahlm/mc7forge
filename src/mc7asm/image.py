@@ -73,7 +73,9 @@ Interface sub-header. The interface section starts with 7 bytes, little-endian
 (ToolBox ``MC7Converter.cs``; **real** on all three blocks and the rz sample):
 a kind byte, a word ToolBox calls the block number, the length of the
 declarations and the length of the start values. See :class:`InterfaceHeader`.
-In every known block exactly one more byte follows the declarations.
+The section is padded to an even length: one more byte follows when sub-header,
+declarations and start values add up to an odd number, and none otherwise
+(**real**: the 86 data blocks of the CPU show both cases).
 
 Data blocks (**real**, DB1). Field 34 is the length of the body at offset 36,
 and that body holds the current values: its length is the size the
@@ -83,11 +85,15 @@ as for a code block. The second meaning the ToolBox header comment gives the
 two fields for data blocks is not what the bytes show. A data block has no
 segment table and no local data.
 
-TODO(real-db-fixture): DB1 has no start values (sub-header word 0), and neither
-has any other known block. ToolBox places them behind the declarations, inside
-the interface section, and :func:`split_interface` follows that, but no block
-has shown it. What settles it is a block whose sub-header declares start
-values: ``validate_image`` reports such a block with the code ``start-values``.
+Start values (**real**). They lie behind the declarations, inside the interface
+section, and field 28 counts them, which is how ToolBox reads them. All 86 data
+blocks of the CPU were looked at, lengths only, and 17 of them declare start
+values. In every one the interface length is 7 + declarations + start values +
+padding, with no byte left over. In the 8 shared data blocks with start values
+the declarations, read from section offset 7, use exactly their declared
+length and describe exactly the length of the body, so the declarations come
+first. How the start values of arrays, structures and strings are encoded was
+not examined; they stay raw bytes here. See ``docs/mc7-structure.md``.
 """
 
 from __future__ import annotations
@@ -439,14 +445,17 @@ class InterfaceHeader:
     DB1    DB         05    1       98            0
     =====  =========  ====  ======  ============  ============
 
+    The other 85 data blocks of the same CPU added the kind ``0a`` and blocks
+    with start values; of those only the lengths were kept.
+
     Attributes:
         kind: Kind of block (offset 0): ``01`` for the code blocks seen, ``05``
-            for the data block; ``0a`` marks an instance DB according to ToolBox.
-        number: The word at offset 1. ToolBox calls it the block number, zero
-            for an OB and the FB number for an instance DB. It is zero in the
-            real FC1 as well, and 1 in the real DB1.
+            for a shared data block and ``0a`` for an instance data block.
+        number: The word at offset 1. Zero in the code blocks seen, the real
+            FC1 included. In a shared data block it is the number of the block
+            itself, in an instance data block the number of its FB.
         declarations_length: Length of the declarations that follow (offset 3).
-        start_values_length: Length of the start values (offset 5).
+        start_values_length: Length of the start values behind them (offset 5).
     """
 
     kind: int
@@ -487,9 +496,10 @@ class InterfaceParts:
     Attributes:
         header: The 7-byte sub-header.
         declarations: The declarations, undecoded.
-        start_values: The start values, undecoded. Empty in every known block;
-            their position behind the declarations is taken from ToolBox.
-        rest: What follows. One byte of unknown meaning in every known block.
+        start_values: The start values, undecoded. They follow the
+            declarations, see the module docstring.
+        rest: What follows. In a real block this is the padding to an even
+            section length: one byte of no fixed value, or nothing.
     """
 
     header: InterfaceHeader

@@ -251,12 +251,12 @@ def test_interface_is_split_along_its_sub_header() -> None:
     assert parts.header.to_bytes() == image.interface[:7] == bytes.fromhex("01 0000 0400 0000")
 
 
-def test_interface_with_start_values_and_a_rest_is_split_and_noted() -> None:
-    section = bytes.fromhex("05 0100 0400 0300") + b"DECL" + b"STA" + b"\x49"
+def test_interface_with_start_values_and_padding_is_split() -> None:
+    section = bytes.fromhex("05 0100 0400 0400") + b"DECL" + b"STAR" + b"\x49"
     parts = split_interface(section)
     assert parts is not None
     assert (parts.header.kind, parts.header.number) == (0x05, 1)
-    assert (parts.declarations, parts.start_values, parts.rest) == (b"DECL", b"STA", b"\x49")
+    assert (parts.declarations, parts.start_values, parts.rest) == (b"DECL", b"STAR", b"\x49")
     assert parts.to_bytes() == section
     raw = bytearray(
         make_block(mc7.blocks.BlockType.DB, 1, mc7=bytes(8), interface_entries=section[7:])
@@ -264,9 +264,8 @@ def test_interface_with_start_values_and_a_rest_is_split_and_noted() -> None:
     raw[36 + 8 : 36 + 8 + 7] = section[:7]
     image = parse_image(bytes(raw))
     assert image.interface == section
-    (finding,) = validate_image(image)
-    assert (finding.severity, finding.code) == (Severity.NOTE, "start-values")
-    assert "3 start-value byte(s)" in finding.message
+    assert len(section) % 2 == 0
+    assert validate_image(image) == []
 
 
 @pytest.mark.parametrize(

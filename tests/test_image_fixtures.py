@@ -121,12 +121,11 @@ def test_cpu_block_interface_follows_its_sub_header(path: Path) -> None:
     is_data = image.header.block_type is BlockType.DB
     assert parts.header.kind == (0x05 if is_data else 0x01)
     assert len(parts.declarations) == parts.header.declarations_length
-    assert parts.start_values == b"", (
-        "a block with start values: TODO(real-db-fixture) can be settled"
-    )
-    assert len(parts.rest) == 1, "every block seen so far has one byte after the declarations"
-    if not is_data:
-        assert parts.header.number == 0
+    assert len(parts.start_values) == parts.header.start_values_length
+    # The section is padded to an even length: one byte or none.
+    assert len(image.interface) % 2 == 0
+    assert len(parts.rest) == (7 + len(parts.declarations) + len(parts.start_values)) % 2
+    assert parts.header.number == (image.header.number if is_data else 0)
 
 
 @pytest.mark.parametrize("path", CPU_CODE_BLOCKS, ids=fixture_id)

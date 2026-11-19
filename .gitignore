@@ -11,6 +11,9 @@ build/
 # Blocks uploaded from a PLC are site data, keep them out of the repository by default.
 /blocks/
 
+# Backups of blocks taken from a PLC before anything is changed on it. Site data, local only.
+/backups/
+
 # Real block fixtures hold the program and the live data of a machine. They stay local:
 # the tests that need them are skipped without them. See tests/fixtures/blocks/README.md.
 /tests/fixtures/blocks/real/

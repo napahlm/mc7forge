@@ -390,7 +390,7 @@ What this does not cover:
 - No built block has been loaded into a CPU.
 - The checksum is written as zero, because its algorithm is not documented; whether a CPU accepts that is open.
 - An FC or FB without declarations, OBs other than OB1 and the end of the segment table of a block with several networks go beyond what any real block shows. `mc7asm build` prints a note in each of these cases.
-- Data blocks are read, not built, and where their start values are is still open.
+- Data blocks are read, not built.
 - If Rizin's `rz-asm` with the mc7 plugin is installed, the tests also disassemble the example code with it and compare; without it that check is skipped.
 
 ### Fixtures and how they were obtained

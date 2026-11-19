@@ -26,7 +26,7 @@ This document only covers what the builder does with it.
 | Code | the compiled body, plus `65 00` unless the source ends with `BE` | see "Block end" |
 | Code length | length of the code including the `BE` | the reference block |
 | Interface, OB | the 28 bytes of the reference block | copied |
-| Interface, FC and FB | `01`, a zero word, no declarations, closing `20` | the sub-header of a real FC1; the empty declarations are generalized |
+| Interface, FC and FB | `01`, a zero word, no declarations, padding byte `20` | the sub-header of a real FC1; the empty declarations are generalized |
 | Local data length | 20 for an OB, 0 for an FC or FB without declarations | reference block; generalized for FC and FB |
 | Segment table | count, one length per network without the `BE`, zero word | the reference block; count and lengths also seen on real blocks with 5 and 19 networks |
 | Footer | empty names, version `10`, checksum 0 | the reference block, except the checksum |
@@ -79,7 +79,7 @@ If anything is reported, nothing is written.
 The checks are:
 
 - length field at offset 8 = file size = 36 + code length + interface length + segment table length + 36, with no unaccounted bytes,
-- the interface is as long as its sub-header says and declares no start values,
+- the interface is as long as its sub-header says,
 - the attribute byte has only documented bits, the language code is a known one, and the block type is OB, FC or FB,
 - the code section ends with `65 00`.
 
@@ -90,5 +90,5 @@ A length field that is not the file size is an error for a code block since the 
 ## Out of scope
 
 Data blocks are not built.
-A real DB1 settled where their values and their declarations are, but not where start values go, see `TODO(real-db-fixture)` in `src/mc7asm/image.py` and [mc7-structure.md](mc7-structure.md#data-blocks).
+Real blocks settled where their values, their declarations and their start values are, see [mc7-structure.md](mc7-structure.md#data-blocks); how start values are encoded is not known well enough to write them.
 Declaration sections in source are a syntax error, so a built FC or FB has no parameters or local variables.

@@ -18,6 +18,7 @@ The images in `expected/` are committed, and a test fails if a build no longer p
 | `blink_de.awl` | the same program in German mnemonics | OB 1 | `expected/blink_de.mc7` |
 | `counter.awl` | the program of the reference block as an FC with two networks | FC 1 | `expected/counter.mc7` |
 | `reference_ob1.awl` | the program of the reference block as it is, one network in OB 1 | OB 1 | `expected/reference_ob1.mc7` |
+| `orphan.awl` | a block nothing calls, whose transfers write each value back where it came from; meant for a first download to a CPU | FC 270 | `expected/orphan.mc7` |
 | `nesting.awl` | statements that parse but are refused by the code generator | FB 7 | none |
 
 ## Building them

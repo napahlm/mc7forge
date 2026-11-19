@@ -1,0 +1,15 @@
+FUNCTION FC 270 : VOID
+TITLE = Orphan: a block nothing calls, for a first download to a CPU
+// A block is only executed when another block calls it, and nothing calls
+// this one. Should it ever be called, every transfer writes a value back to
+// the address it was just loaded from, so bit memory keeps its contents.
+BEGIN
+NETWORK
+TITLE = Load and transfer on bit memory, each value back where it came from
+      L     MB 2040
+      T     MB 2040
+      L     MW 2042
+      T     MW 2042
+      L     MD 2044
+      T     MD 2044
+END_FUNCTION

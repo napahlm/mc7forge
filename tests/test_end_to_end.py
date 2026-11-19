@@ -77,7 +77,7 @@ def source_id(source: Path) -> str:
 
 
 def test_every_example_has_exactly_one_expected_image() -> None:
-    assert len(SOURCES) == 13
+    assert len(SOURCES) == 14
     images = sorted(path.stem for path in build_examples.EXPECTED.glob("*.mc7"))
     assert images == [source.stem for source in SOURCES]
     assert build_examples.main(["--check"]) == 0

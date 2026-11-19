@@ -56,7 +56,7 @@ def build_source(statements: str, header: str = "FUNCTION FC 1 : VOID") -> Built
 
 
 def test_every_example_is_either_buildable_or_refused_by_the_code_generator() -> None:
-    assert len(BUILDABLE) == 13
+    assert len(BUILDABLE) == 14
     assert (EXAMPLES / "nesting.awl").is_file()
     with pytest.raises(NotYetSupportedError):
         build("nesting")
